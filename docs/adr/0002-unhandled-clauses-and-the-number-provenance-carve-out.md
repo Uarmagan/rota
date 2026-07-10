@@ -23,7 +23,9 @@ clauses (see [D2 in ROADMAP.md](../../ROADMAP.md)).
 - **Non-blocking.** `GapOutcome` gains `ready_with_notice`: if the intent is otherwise
   searchable, results stream AND the echo line renders (principle #4, partial answers
   now). Missing destination remains a hard blocker and is adjudicated first;
-  `checkGaps(intent, unhandled)` decides both.
+  `checkGaps(intent, unhandled)` decides both. (Refined by
+  [docs/adr/0005](0005-exploratory-destinations-deferred-but-acknowledged.md): when
+  destination is also missing, the follow-up *absorbs* the echo rather than deferring it.)
 
 ## The number-provenance carve-out (why this needs recording)
 

@@ -6,11 +6,12 @@ items from Open decisions into the schema/PRD and note the choice inline.
 
 ## Status
 
-- **Done:** M0 foundations (commit `657cb70`). Build, typecheck, 36 tests green.
-- **Current:** M1 is unblocked — D1 and D2 are decided (see Open decisions). Schema
-  changes they imply (`priority` field, `ParseResult`/`unhandled`, `GapOutcome`
-  `ready_with_notice`) are the first M1 step. M2 and M3 are also unblocked and can run
-  in parallel.
+- **Done:** M0 foundations (commit `657cb70`). All D1–D5 decisions resolved and the
+  schema is considered frozen for MVP (D1 `priority`, D2 `ParseResult`/`unhandled` +
+  `GapOutcome`, D3 single-airport registry, D4 defaults, D5 exploratory follow-up).
+  Typecheck + 70 tests green.
+- **Current:** M1 is unblocked and the parser prompt can be built against the frozen
+  schema. M2 and M3 are also unblocked and can run in parallel.
 
 ## Open decisions
 
@@ -36,16 +37,28 @@ Blocking M1 (the parser prompt is built around the schema, so these change its c
       UI note (M5, non-blocking): gaps surface as chip-row prompting states (empty chip
       + registry typeahead), never chat bubbles or modals — there is no chat surface.
 
-Non-blocking, decide before the schema is considered frozen:
+Non-blocking, decided before freezing the schema:
 
-- [ ] **D3 — Multi-airport metros.** Registry currently lists NRT before HND and
-      first-entry-wins for bare city names. Alternative: metro codes (TYO).
-- [ ] **D4 — Generalize `assumed` beyond origin?** Travelers/cabin currently stay null
-      and the engine defaults silently at search time — slight tension with PRD
-      principle 1 ("From: Chicago (assumed)" chip vs. invisible default to economy/1).
-- [ ] **D5 — Exploratory destinations.** "somewhere warm in march" currently degrades
-      to the missing-destination follow-up, and "warm" is not preserved. Ratify that
-      as MVP behavior (PRD edit) or add destination-theme state.
+- [x] **D3 — Multi-airport metros.** DECIDED: one airport per city for MVP; dropped HND
+      so every city resolves unambiguously (no soft LLM airport choice). Multi-airport
+      metro codes (TYO expanded to member airports at search) deferred to phase 2 — the
+      abstraction is disproportionate when only Tokyo ever had two airports, and no
+      demo-path utterance needs it. See docs/adr/0003. (PLACES_VERSION bumped to
+      2026-07-10.1.)
+- [x] **D4 — Generalize `assumed` beyond origin?** DECIDED: no. Three field states —
+      stated, assumed, defaulted. Unstated cabin/travelers are FILLED in normalization
+      (economy, 1) and shown as plain editable chips, so nothing is silently decided
+      (principle 1), but the "(assumed)" flag stays origin-only to keep the signal
+      undiluted. Cheapest schema path (no new field types). Escalating a field to a
+      flagged assumption later is additive. See docs/adr/0004. NOTE: the defaulting code
+      lands with the M2 engine/normalization; this decision precedes it.
+- [x] **D5 — Exploratory destinations.** DECIDED: no theme→destination search in MVP
+      (phase 2; the registry has no warm places anyway). But the theme is not dropped —
+      D2 captures "somewhere warm" in `unhandled`, and since destination stays null the
+      missing-destination follow-up ABSORBS the echo (one question that acknowledges what
+      we couldn't use AND asks where to). Refines the D2 ordering. Added the marquee
+      `exploratory-warm-march-cheap` fixture (exercises D1+D2+D5). PRD example reframed.
+      See docs/adr/0005.
 
 ## M0 — Foundations ✅
 

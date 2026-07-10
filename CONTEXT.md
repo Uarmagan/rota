@@ -56,9 +56,18 @@ normalized intents.
 A hole in a parsed intent — a null field, or a contradiction between constraints.
 
 **Assumption**:
-A low-risk gap filled with a labeled, one-tap-editable default ("From: Chicago
-(assumed)"). Only the engine may create one.
+A risky gap the engine fills AND flags with a one-tap-editable label ("From: Chicago
+(assumed)") that says "double-check me". Reserved for genuine guesses about the user —
+currently origin only. Confirming flips the flag off. Only the engine creates one.
 _Avoid_: silent default, guess
+
+**Default**:
+A safe unstated field the engine fills with a near-universal fallback (cabin → economy,
+travelers → 1), rendered as a plain, editable chip — visible and correctable, but NOT
+flagged "(assumed)". Satisfies principle 1 (nothing is silently decided) without
+diluting the assumption signal by stamping it on low-stakes fields. A field is thus in
+one of three states: stated, assumed, or defaulted. See docs/adr/0004.
+_Avoid_: silent default (it shows a chip), assumption (a default is unflagged)
 
 **Targeted follow-up**:
 The single deterministic question a high-risk gap earns (missing destination,
@@ -80,9 +89,19 @@ _Avoid_: dropped, ignored, error, leftover
 **Notice (ready-with-notice)**:
 The non-blocking gap outcome when the intent is searchable but carried an `unhandled`
 clause: the search streams AND the echo line renders. Distinct from a follow-up — it is
-not a question, so "never a wall of questions" still holds. Missing destination is a
-hard blocker and is adjudicated first; `unhandled` waits behind it.
+not a question, so "never a wall of questions" still holds. Missing destination is a hard
+blocker and is adjudicated first; when destination is ALSO missing, the follow-up absorbs
+the echo (see [[Destination theme]]) rather than deferring it invisibly.
 _Avoid_: warning, follow-up (it asks nothing)
+
+**Destination theme**:
+A deliberately vague destination ("somewhere warm", "a beach") — an invitation to
+explore, not an omission. MVP does no theme→destination search (the registry has no warm
+places anyway; phase 2 owns exploratory search). The theme is captured as [[Unhandled]]
+and, since it leaves destination null, absorbed into the missing-destination follow-up so
+the user's intent is acknowledged, never silently treated as a blank field. See
+docs/adr/0005.
+_Avoid_: missing destination (a theme is stated, not absent), exploratory search
 
 **Identity (hostile input)**:
 The required outcome for hostile or nonsense utterances: the current intent is

@@ -75,6 +75,11 @@ const FEB_2027 = {
   latest: '2027-02-28',
   flexibility: 'flexible',
 } as const
+const MARCH_2027 = {
+  earliest: '2027-03-01',
+  latest: '2027-03-31',
+  flexibility: 'flexible',
+} as const
 const NO_CONSTRAINTS = {
   nonstop: null,
   arriveBy: null,
@@ -178,6 +183,31 @@ export const parserFixtures: readonly ParserFixture[] = [
     },
     expectedUnhandled: 'exactly one connection',
     expectedChangedFields: ['cabin'],
+  },
+  {
+    name: 'exploratory-warm-march-cheap',
+    kind: 'initial',
+    description:
+      'The PRD marquee exploratory query. Everything resolvable is parsed — "in ' +
+      'march" -> dates, "cheap" -> priority cheapest — while "somewhere warm" cannot ' +
+      'become a registry place and is echoed through unhandled (no theme->destination ' +
+      'search in MVP; that is phase 2). Destination stays null, so checkGaps returns a ' +
+      'missing-destination follow-up that absorbs the echo (D5). Proves D1, D2, and D5 ' +
+      'together on one utterance.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'somewhere warm in march, cheap',
+    expected: {
+      travelers: null,
+      origin: null,
+      destination: null,
+      cabin: null,
+      dates: MARCH_2027,
+      priority: 'cheapest',
+      constraints: NO_CONSTRAINTS,
+    },
+    expectedUnhandled: 'somewhere warm',
+    expectedChangedFields: ['dates', 'priority'],
   },
   {
     name: 'refinement-preserves-state',

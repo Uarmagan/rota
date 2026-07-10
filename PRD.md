@@ -40,6 +40,8 @@ Behavioral rules, not tech choices. Every feature is downstream of these.
 
 A single input that accepts how people actually type: "business class to tokyo in february for 2", "tokyo feb", "somewhere warm in march, cheap". No traditional search form. The intent chips are the structured fallback.
 
+Note on "somewhere warm": MVP parses everything resolvable (dates → March, price lean → cheapest) and *acknowledges* the vague part rather than resolving it — it captures "somewhere warm" and folds it into a single follow-up asking for a destination, instead of silently treating the field as blank. Turning a theme like "warm" into candidate destinations (exploratory search) is phase 2; the current registry has no warm places to resolve to. See docs/adr/0005.
+
 ### 2. Intent chips
 
 The parsed request renders as a row of editable chips: travelers, route, cabin, dates and flexibility, constraints (nonstop, arrive-by, avoid red-eyes). Tap any chip to correct it without retyping.

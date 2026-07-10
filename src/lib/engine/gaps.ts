@@ -15,15 +15,20 @@ export type GapOutcome =
   | { kind: 'ready_with_notice'; unhandled: string }
 
 // `unhandled` is the parser's per-utterance notice, passed in beside the intent (it is
-// never a field on TripIntent). Missing destination is a hard blocker and is
-// adjudicated first: you cannot act on "exactly one connection" before you've said
-// where you're going, so the notice waits behind it.
+// never a field on TripIntent). Missing destination is a hard blocker and is adjudicated
+// first. When both coincide — the common case for an exploratory query like "somewhere
+// warm in march" — the follow-up ABSORBS the notice rather than deferring it invisibly
+// (D5, docs/adr/0005): the one question acknowledges what we couldn't use AND asks for a
+// destination. The echo is deterministic-template + the user's own words (same echo-only
+// rule as the notice), so no LLM-authored claim reaches the copy.
 export function checkGaps(intent: TripIntent, unhandled: string | null): GapOutcome {
   if (!intent.destination) {
     return {
       kind: 'follow_up',
       reason: 'missing_destination',
-      question: 'Where do you want to fly to?',
+      question: unhandled
+        ? `I couldn't use "${unhandled}" — and I still need a destination. Where would you like to fly?`
+        : 'Where do you want to fly to?',
     }
   }
   // Contradiction detection joins here once the constraint vocabulary can express a
