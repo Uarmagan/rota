@@ -21,11 +21,29 @@ anything:
   `typescript` stays on 5.x (Next 16 doesn't support TS 7).
 - Schema absence is `.nullable()`, never `.optional()` (strict JSON schema mode).
 
+## TypeScript
+
+- Never use `any` unless 100% necessary or specifically instructed.
+
 ## Commands
 
 - `pnpm test` — Vitest (no network needed)
 - `pnpm typecheck` — tsc strict
 - `pnpm build` — Next production build
+
+- Don't run dev server commands (e.g., `pnpm dev`) — assume it's already running.
+- Don't run build commands unless specifically told to.
+- Focus on checking commands like `pnpm typecheck` and `pnpm test`.
+
+## Package Managers
+
+- Use pnpm if the project already uses it, otherwise use bun.
+- Never use npm or yarn.
+
+## Code Style
+
+- Always strive for concise, simple solutions.
+- If a problem can be solved in a simpler way, propose it.
 
 ## Agent skills
 
@@ -83,3 +101,9 @@ Using gpt-5.6 inside workflows/subagents (the `model` param only takes Claude mo
   the background and poll for the report. Parallel gpt-5.6 editors need
   `isolation: 'worktree'` so codex edits don't collide. Workflow token budgets count
   only Claude tokens; codex work is invisible to `budget.spent()`.
+
+## General preferences
+
+- If asked to do too much work at once, stop and state that clearly.
+- If computer use is helpful for completing or verifying work, shell out to gpt-5.6 with
+  high reasoning effort in Codex for it.
