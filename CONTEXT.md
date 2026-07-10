@@ -118,6 +118,12 @@ _Avoid_: passenger, pax, guest
 
 ### Results
 
+**Simulated availability**:
+The one fabricated layer — flight inventory from a seeded generator behind the
+`AvailabilityProvider` interface. Fake data, real streaming transport and timing;
+everything downstream of it is real.
+_Avoid_: mock data, test inventory
+
 **Source**:
 One simulated availability provider, with its own latency profile and inventory shape.
 _Avoid_: airline, supplier
@@ -154,6 +160,12 @@ The only two seams where a language model exists: parser (words → TripIntent) 
 prose (facts → copy).
 _Avoid_: "the AI" for anything outside these two
 
+**Allowlist guard**:
+The test that makes the LLM boundary checkable: engine may import only zod/schema/engine,
+and `ai`/`@openrouter/*` may appear only under parser and prose. An allowlist — new
+dependencies are guilty until proven innocent.
+_Avoid_: import lint, boundary check
+
 **Parser**:
 The boundary that turns an utterance plus current intent into a complete TripIntent.
 It interprets; it never computes and never decides what to ask.
@@ -171,6 +183,10 @@ The check that every digit and number word in prose corresponds to a value in th
 facts, else a deterministic template renders instead. Enforces provenance, not
 claim-binding.
 
+**Response healing**:
+The provider plugin that repairs malformed model JSON before Zod validation. The Zod
+gate stays the hard boundary; healing only reduces retries.
+
 ### Testing language
 
 **Parser fixture**:
@@ -181,6 +197,11 @@ requirement, not test convenience.
 **Pinned context**:
 The frozen inputs a fixture was written against — reference date and place-registry
 snapshot — so expectations never depend on the wall clock.
+
+**Self-consistency tests**:
+The no-network suite that validates the fixture data itself — intents pass the schema
+gate, expected values are already canonical, and declared changed-field sets match the
+computed diff. Distinct from the live-model eval, which exercises the model.
 
 **Live-model eval**:
 Running the fixture suite through the real parser against the real model. Where a
