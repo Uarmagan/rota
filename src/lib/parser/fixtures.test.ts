@@ -36,19 +36,22 @@ describe.each(parserFixtures.map((f) => [f.name, f] as const))(
       ).toBe(true)
     })
 
-    it('a destination produces the expected ready gap outcome', () => {
-      if (fixture.expected.destination) {
-        const expectedOutcome =
-          fixture.expectedUnhandled === null
-            ? { kind: 'ready' }
-            : {
-                kind: 'ready_with_notice',
-                unhandled: fixture.expectedUnhandled,
-              }
-
-        expect(checkGaps(fixture.expected, fixture.expectedUnhandled)).toEqual(
-          expectedOutcome,
-        )
+    it('checkGaps matches the fixture destination/unhandled state', () => {
+      const outcome = checkGaps(fixture.expected, fixture.expectedUnhandled)
+      if (!fixture.expected.destination) {
+        // Missing destination blocks and is adjudicated first — even when a clause
+        // went unhandled, the notice waits behind the follow-up.
+        expect(outcome).toMatchObject({
+          kind: 'follow_up',
+          reason: 'missing_destination',
+        })
+      } else if (fixture.expectedUnhandled !== null) {
+        expect(outcome).toEqual({
+          kind: 'ready_with_notice',
+          unhandled: fixture.expectedUnhandled,
+        })
+      } else {
+        expect(outcome).toEqual({ kind: 'ready' })
       }
     })
   },

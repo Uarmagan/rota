@@ -156,6 +156,30 @@ export const parserFixtures: readonly ParserFixture[] = [
     expectedChangedFields: ['destination', 'dates'],
   },
   {
+    name: 'unhandled-defers-to-missing-destination',
+    kind: 'initial',
+    description:
+      'The ordering rule: a real field (cabin) parses and a clause goes unhandled, ' +
+      'but with no destination the intent is not searchable, so checkGaps blocks ' +
+      'with the missing-destination follow-up and the unhandled notice waits behind ' +
+      'it — you cannot act on "exactly one connection" before you have said where. ' +
+      'Origin stays null; the parser never invents one.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'business class, exactly one connection',
+    expected: {
+      travelers: null,
+      origin: null,
+      destination: null,
+      cabin: 'business',
+      dates: null,
+      priority: null,
+      constraints: NO_CONSTRAINTS,
+    },
+    expectedUnhandled: 'exactly one connection',
+    expectedChangedFields: ['cabin'],
+  },
+  {
     name: 'refinement-preserves-state',
     kind: 'refinement',
     description:
