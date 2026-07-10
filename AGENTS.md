@@ -8,12 +8,12 @@ Before changing behavior, read `PRD.md`, `ARCHITECTURE.md`, and `ROADMAP.md`. Up
 
 ## Build, Test, and Development Commands
 
-- `npm run dev` starts the local Next.js development server.
-- `npm test` runs the network-free Vitest suite once.
-- `npm run test:watch` reruns affected tests during development.
-- `npm run typecheck` checks strict TypeScript without emitting files.
-- `npm run build` creates the production Next.js build.
-- `npm start` serves an existing production build.
+- `pnpm dev` starts the local Next.js development server.
+- `pnpm test` runs the network-free Vitest suite once.
+- `pnpm test:watch` reruns affected tests during development.
+- `pnpm typecheck` checks strict TypeScript without emitting files.
+- `pnpm build` creates the production Next.js build.
+- `pnpm start` serves an existing production build.
 
 Run tests, typecheck, and build before requesting review.
 

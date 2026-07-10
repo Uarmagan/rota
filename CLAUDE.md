@@ -23,9 +23,9 @@ anything:
 
 ## Commands
 
-- `npm test` — Vitest (no network needed)
-- `npm run typecheck` — tsc strict
-- `npm run build` — Next production build
+- `pnpm test` — Vitest (no network needed)
+- `pnpm typecheck` — tsc strict
+- `pnpm build` — Next production build
 
 ## Agent skills
 
