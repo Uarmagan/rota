@@ -40,3 +40,44 @@ The five canonical triage roles, each label string equal to its name. See `docs/
 ### Domain docs
 
 Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Picking models for workflows and subagents
+
+When spawning subagents (Agent tool) or Workflow stages, pick the model deliberately.
+Rankings, higher = better. Cost reflects what I actually pay (gpt-5.5 is near-free for
+me), not list price. Intelligence = how hard a problem the model takes unsupervised.
+Taste = UI/UX, code quality, API design, copy.
+
+| model    | cost | intelligence | taste |
+| -------- | ---- | ------------ | ----- |
+| gpt-5.5  | 9    | 8            | 5     |
+| sonnet-5 | 5    | 5            | 7     |
+| opus-4.8 | 4    | 7            | 8     |
+| fable-5  | 2    | 9            | 9     |
+
+How to apply:
+
+- Defaults, not limits. Standing permission to override: if a cheaper model's output
+  misses the bar, rerun with a smarter one without asking. Judge the output, not the
+  price — escalating costs less than shipping mediocre work.
+- Cost is a tie-breaker only; when axes conflict for anything that ships,
+  intelligence > taste > cost.
+- Bulk/mechanical work (clear-spec implementation, migrations, data analysis): gpt-5.5.
+- Anything user-facing (the conversational flow, chip copy, prose templates) needs
+  taste ≥ 7 — fable-5 or opus-4.8.
+- Reviews of plans/implementations: fable-5 or opus-4.8; optionally gpt-5.5 as an extra
+  independent perspective.
+- Never use Haiku.
+- Claude models (sonnet-5, opus-4.8, fable-5) run via the Agent/Workflow `model`
+  parameter. gpt-5.5 is only reachable through the Codex CLI (`codex exec`).
+
+Using gpt-5.5 inside workflows/subagents (the `model` param only takes Claude models):
+
+- Spawn a thin Claude wrapper (`model: 'sonnet', effort: 'low'`) whose prompt writes a
+  self-contained codex prompt, runs `codex exec` via Bash, and returns the report (use
+  `schema` for structured output). Label it `gpt-5.5:...` — the workflow UI shows the
+  wrapper's Claude model, so the label is the only signal of the real worker.
+- Codex runs can exceed Bash's 10-minute timeout: pass an explicit timeout or run in
+  the background and poll for the report. Parallel gpt-5.5 editors need
+  `isolation: 'worktree'` so codex edits don't collide. Workflow token budgets count
+  only Claude tokens; codex work is invisible to `budget.spent()`.
