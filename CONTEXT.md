@@ -183,6 +183,15 @@ The check that every digit and number word in prose corresponds to a value in th
 facts, else a deterministic template renders instead. Enforces provenance, not
 claim-binding.
 
+> **Defend this invariant.** "No number a user sees originates from the model" is the
+> load-bearing promise of the whole architecture — it's what separates Rota from a
+> chatbot with a form stapled on. It degrades quietly: the first feature that lets the
+> model phrase an unverified figure ("about 40% cheaper", "usually 2 stops") reads as
+> harmless copy but collapses the guarantee for everything. Any new number in
+> user-facing output must trace to an engine-computed fact; if the engine didn't
+> compute it, the prose can't say it — add the computation to the engine, don't relax
+> the guard. Mirrors the CLAUDE.md invariant; keep them in lockstep.
+
 **Response healing**:
 The provider plugin that repairs malformed model JSON before Zod validation. The Zod
 gate stays the hard boundary; healing only reduces retries.
