@@ -67,6 +67,14 @@ export type DateWindow = z.infer<typeof dateWindowSchema>
 export const nonstopSchema = z.enum(['required', 'preferred'])
 export type Nonstop = z.infer<typeof nonstopSchema>
 
+// A ranking preference, not a constraint: it reweights the scoring blend toward price
+// or duration and never removes a result. Top-level (not in constraints) because it is
+// two-state — null or a value, with no coherent 'false' — so it fails the tri-state
+// test that defines constraint membership. A single axis, so "cheap and fast" is
+// unrepresentable and the two values can never contradict. See docs/adr/0001.
+export const prioritySchema = z.enum(['cheapest', 'fastest'])
+export type Priority = z.infer<typeof prioritySchema>
+
 // Every constraint is tri-state: null = never stated, a value = stated, and for the
 // booleans, false = user explicitly waived it ("red-eyes are fine"). Constraint
 // removal ("forget the nonstop thing") is re-emission with the field back to null.
@@ -90,9 +98,24 @@ export const tripIntentSchema = z.object({
   destination: placeSchema.nullable(),
   cabin: cabinSchema.nullable(),
   dates: dateWindowSchema.nullable(),
+  priority: prioritySchema.nullable(),
   constraints: constraintsSchema,
 })
 export type TripIntent = z.infer<typeof tripIntentSchema>
+
+// The parser's output contract. `unhandled` lives BESIDE the intent, never on it: it is
+// transient (fresh per utterance, never persisted), not a chip, and never diffed — the
+// opposite persistence semantics from every TripIntent field. It holds echo-only display
+// text for recognized-but-unsupported clauses ("exactly one connection"), quoting the
+// user's own words back and introducing no new numbers or facts. Parse *failures* (bad
+// JSON, unknown IATA) never reach here — they take the Zod-gate/heal/retry path. The
+// model emits this single object via Output.object; the engine splits it. See
+// docs/adr/0002.
+export const parseResultSchema = z.object({
+  intent: tripIntentSchema,
+  unhandled: z.string().nullable(),
+})
+export type ParseResult = z.infer<typeof parseResultSchema>
 
 export function createEmptyTripIntent(): TripIntent {
   return {
@@ -101,6 +124,7 @@ export function createEmptyTripIntent(): TripIntent {
     destination: null,
     cabin: null,
     dates: null,
+    priority: null,
     constraints: {
       nonstop: null,
       arriveBy: null,

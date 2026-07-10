@@ -9,7 +9,7 @@ import {
 // Parser fixture format (PRD §6: the fixture set is a product requirement).
 //
 // Each fixture is one (currentIntent, utterance) => expected full TripIntent case,
-// pinned at the PARSER stage of the pipeline. The test runner asserts TWO things:
+// pinned at the PARSER stage of the pipeline. The test runner asserts THREE things:
 //
 //   1. deepEqual(canonicalizePlaces(parsed), expected) — the parser re-emitted the
 //      COMPLETE intent, so preservation of every unmentioned field is asserted
@@ -19,6 +19,8 @@ import {
 //   2. computeIntentDiff(currentIntent, result) touches exactly
 //      expectedChangedFields — proving every other field is identical to
 //      currentIntent AND exercising the deterministic diff the UI depends on.
+//   3. expectedUnhandled is explicit and drives the ready/ready-with-notice gap
+//      outcome without becoming part of TripIntent.
 //
 // Assumption-filling is deliberately NOT applied by the runner: the parser never
 // invents an origin, so first-query fixtures expect origin: null. The engine's
@@ -57,6 +59,7 @@ export interface ParserFixture {
   currentIntent: TripIntent
   utterance: string
   expected: TripIntent
+  expectedUnhandled: string | null
   expectedChangedFields: readonly IntentField[]
 }
 
@@ -99,8 +102,10 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: TOKYO,
       cabin: null,
       dates: FEB_2027,
+      priority: null,
       constraints: NO_CONSTRAINTS,
     },
+    expectedUnhandled: null,
     expectedChangedFields: ['destination', 'dates'],
   },
   {
@@ -120,9 +125,35 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: TOKYO,
       cabin: 'business',
       dates: FEB_2027,
+      priority: null,
       constraints: NO_CONSTRAINTS,
     },
+    expectedUnhandled: null,
     expectedChangedFields: ['travelers', 'destination', 'cabin', 'dates'],
+  },
+  {
+    name: 'unhandled-connection-clause',
+    kind: 'initial',
+    description:
+      'Destination and dates are mapped, so the intent remains searchable, while ' +
+      '"exactly one connection" cannot fit the required/preferred nonstop field. ' +
+      'The user\'s clause is echoed through unhandled instead of silently dropped ' +
+      '(product principle #1), and it must not leak into any TripIntent field. ' +
+      'Origin stays null because the parser never invents one.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'tokyo in feb, exactly one connection',
+    expected: {
+      travelers: null,
+      origin: null,
+      destination: TOKYO,
+      cabin: null,
+      dates: FEB_2027,
+      priority: null,
+      constraints: NO_CONSTRAINTS,
+    },
+    expectedUnhandled: 'exactly one connection',
+    expectedChangedFields: ['destination', 'dates'],
   },
   {
     name: 'refinement-preserves-state',
@@ -139,6 +170,7 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: TOKYO,
       cabin: 'economy',
       dates: FEB_2027,
+      priority: null,
       constraints: { ...NO_CONSTRAINTS, departAfter: '09:00' },
     },
     utterance: 'actually business class, and nonstop if possible',
@@ -148,13 +180,46 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: TOKYO,
       cabin: 'business',
       dates: FEB_2027,
+      priority: null,
       constraints: {
         ...NO_CONSTRAINTS,
         nonstop: 'preferred',
         departAfter: '09:00',
       },
     },
+    expectedUnhandled: null,
     expectedChangedFields: ['cabin', 'constraints.nonstop'],
+  },
+  {
+    name: 'priority-refinement',
+    kind: 'refinement',
+    description:
+      'A ranking refinement against searchable post-normalization chip state. Only ' +
+      'priority changes to cheapest; travelers, the assumed origin, destination, ' +
+      'cabin, dates, and constraints must survive verbatim, keeping the diff ' +
+      'isolated to the top-level priority chip.',
+    context: CONTEXT,
+    currentIntent: {
+      travelers: 2,
+      origin: { iata: 'ORD', city: 'Chicago', assumed: true },
+      destination: TOKYO,
+      cabin: 'business',
+      dates: FEB_2027,
+      priority: null,
+      constraints: NO_CONSTRAINTS,
+    },
+    utterance: 'actually, whatever is cheapest',
+    expected: {
+      travelers: 2,
+      origin: { iata: 'ORD', city: 'Chicago', assumed: true },
+      destination: TOKYO,
+      cabin: 'business',
+      dates: FEB_2027,
+      priority: 'cheapest',
+      constraints: NO_CONSTRAINTS,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['priority'],
   },
   {
     name: 'late-arrival-refinement',
@@ -170,6 +235,7 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: TOKYO,
       cabin: 'business',
       dates: FEB_2027,
+      priority: null,
       constraints: { ...NO_CONSTRAINTS, nonstop: 'preferred' },
     },
     utterance: 'nothing that lands after midnight',
@@ -179,12 +245,14 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: TOKYO,
       cabin: 'business',
       dates: FEB_2027,
+      priority: null,
       constraints: {
         ...NO_CONSTRAINTS,
         nonstop: 'preferred',
         avoidLateArrival: true,
       },
     },
+    expectedUnhandled: null,
     expectedChangedFields: ['constraints.avoidLateArrival'],
   },
   {
@@ -200,6 +268,7 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: { iata: 'LIS', city: 'Lisbon' },
       cabin: 'business',
       dates: { earliest: '2026-09-14', latest: '2026-09-14', flexibility: 'exact' },
+      priority: null,
       constraints: { ...NO_CONSTRAINTS, nonstop: 'required', arriveBy: '17:00' },
     },
     utterance: 'forget the nonstop thing',
@@ -209,8 +278,10 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: { iata: 'LIS', city: 'Lisbon' },
       cabin: 'business',
       dates: { earliest: '2026-09-14', latest: '2026-09-14', flexibility: 'exact' },
+      priority: null,
       constraints: { ...NO_CONSTRAINTS, arriveBy: '17:00' },
     },
+    expectedUnhandled: null,
     expectedChangedFields: ['constraints.nonstop'],
   },
   {
@@ -227,6 +298,7 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: TOKYO,
       cabin: 'business',
       dates: FEB_2027,
+      priority: null,
       constraints: { ...NO_CONSTRAINTS, nonstop: 'preferred' },
     },
     utterance:
@@ -237,8 +309,10 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: TOKYO,
       cabin: 'business',
       dates: FEB_2027,
+      priority: null,
       constraints: { ...NO_CONSTRAINTS, nonstop: 'preferred' },
     },
+    expectedUnhandled: null,
     expectedChangedFields: [],
   },
   {
@@ -257,6 +331,7 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: TOKYO,
       cabin: 'business',
       dates: FEB_2027,
+      priority: null,
       constraints: { ...NO_CONSTRAINTS, nonstop: 'preferred' },
     },
     utterance:
@@ -267,8 +342,10 @@ export const parserFixtures: readonly ParserFixture[] = [
       destination: TOKYO,
       cabin: 'business',
       dates: FEB_2027,
+      priority: null,
       constraints: { ...NO_CONSTRAINTS, nonstop: 'preferred' },
     },
+    expectedUnhandled: null,
     expectedChangedFields: [],
   },
 ]

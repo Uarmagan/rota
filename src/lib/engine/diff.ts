@@ -16,6 +16,7 @@ const getters: FieldGetters = {
   destination: (i) => i.destination,
   cabin: (i) => i.cabin,
   dates: (i) => i.dates,
+  priority: (i) => i.priority,
   'constraints.nonstop': (i) => i.constraints.nonstop,
   'constraints.arriveBy': (i) => i.constraints.arriveBy,
   'constraints.departAfter': (i) => i.constraints.departAfter,

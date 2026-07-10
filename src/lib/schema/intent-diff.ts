@@ -20,6 +20,7 @@ export type IntentFieldValues = {
   destination: Place | null
   cabin: Cabin | null
   dates: DateWindow | null
+  priority: TripIntent['priority']
   'constraints.nonstop': Constraints['nonstop']
   'constraints.arriveBy': Constraints['arriveBy']
   'constraints.departAfter': Constraints['departAfter']

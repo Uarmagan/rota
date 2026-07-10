@@ -8,6 +8,7 @@ const base: TripIntent = {
   destination: { iata: 'NRT', city: 'Tokyo' },
   cabin: 'economy',
   dates: { earliest: '2027-02-01', latest: '2027-02-28', flexibility: 'flexible' },
+  priority: null,
   constraints: {
     nonstop: null,
     arriveBy: null,

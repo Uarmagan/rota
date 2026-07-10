@@ -62,8 +62,27 @@ _Avoid_: silent default, guess
 
 **Targeted follow-up**:
 The single deterministic question a high-risk gap earns (missing destination,
-contradictory constraints). Never a wall of questions.
+contradictory constraints). Never a wall of questions. Surfaces in the chip row as an
+unfilled, prompting chip (resolved inline via the single input or a registry
+typeahead), never as a chat bubble or modal — there is no chat surface.
 _Avoid_: clarification flow, wizard
+
+**Unhandled**:
+A recognized-but-unsupported clause the parser could not map to any field ("exactly one
+connection", "window seat") — NOT a parse failure (those take the Zod-gate → heal →
+retry path). Emitted as `unhandled: string | null` *beside* the TripIntent in the
+parser's `ParseResult`, never as a field on it: it is transient (fresh per utterance,
+never persisted), never a chip, never diffed. Echo-only display text — it quotes the
+user's own clause back, introducing no new numbers or facts, which is the one narrow,
+sanctioned place model-authored text reaches the screen from the parser boundary.
+_Avoid_: dropped, ignored, error, leftover
+
+**Notice (ready-with-notice)**:
+The non-blocking gap outcome when the intent is searchable but carried an `unhandled`
+clause: the search streams AND the echo line renders. Distinct from a follow-up — it is
+not a question, so "never a wall of questions" still holds. Missing destination is a
+hard blocker and is adjudicated first; `unhandled` waits behind it.
+_Avoid_: warning, follow-up (it asks nothing)
 
 **Identity (hostile input)**:
 The required outcome for hostile or nonsense utterances: the current intent is
@@ -115,6 +134,16 @@ schema one.
 An occupied seat — what availability must find and pricing must multiply. Lap infants
 and passenger types are out of scope.
 _Avoid_: passenger, pax, guest
+
+### Ranking
+
+**Priority**:
+A ranking preference — `cheapest`, `fastest`, or null. Reweights the scoring blend
+toward price or duration; it never filters, so no result ever drops. Two-state (null or
+a value, no coherent `false`), which is why it lives top-level and not among the
+tri-state constraints. A single axis, so "cheap and fast" is not representable and the
+two values can never contradict.
+_Avoid_: sort, sort order, filter, preference (bare)
 
 ### Results
 
@@ -191,6 +220,13 @@ claim-binding.
 > user-facing output must trace to an engine-computed fact; if the engine didn't
 > compute it, the prose can't say it — add the computation to the engine, don't relax
 > the guard. Mirrors the CLAUDE.md invariant; keep them in lockstep.
+>
+> **One sanctioned exception: [[Unhandled]] echo text.** `unhandled` may put a number
+> on screen ("couldn't apply: exactly 1 connection") — but its provenance is the USER,
+> not the model: it echoes the user's own clause verbatim. That is a mirror, not a
+> claim, so the spirit of the guard holds (the model never *originates* a fact-number).
+> This is a carve-out, not a precedent: it does NOT license the model to phrase any
+> figure it wasn't handed by the user. Do not widen it.
 
 **Response healing**:
 The provider plugin that repairs malformed model JSON before Zod validation. The Zod

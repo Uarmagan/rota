@@ -7,19 +7,34 @@ items from Open decisions into the schema/PRD and note the choice inline.
 ## Status
 
 - **Done:** M0 foundations (commit `657cb70`). Build, typecheck, 36 tests green.
-- **Current:** M1 is blocked on decisions D1/D2. M2 and M3 are unblocked and can start
-  any time, in parallel.
+- **Current:** M1 is unblocked — D1 and D2 are decided (see Open decisions). Schema
+  changes they imply (`priority` field, `ParseResult`/`unhandled`, `GapOutcome`
+  `ready_with_notice`) are the first M1 step. M2 and M3 are also unblocked and can run
+  in parallel.
 
 ## Open decisions
 
 Blocking M1 (the parser prompt is built around the schema, so these change its contract):
 
-- [ ] **D1 — Price preference.** The PRD accepts "cheap" as input but the schema can't
-      hold it. Add a ranking-preference field (lean: yes, small enum) or descope via
-      PRD edit.
-- [ ] **D2 — `unhandled` field.** Should the parser re-emit an `unhandled: string | null`
-      for clauses it can't map (e.g. "exactly one connection"), so the engine can
-      surface a deterministic follow-up instead of silently dropping them? Lean: yes.
+- [x] **D1 — Price preference.** DECIDED: add top-level `priority: 'cheapest' |
+      'fastest' | null`. A ranking preference (reweights the scoring blend), never a
+      filter — no result drops, and no user-facing number is invented. Top-level, not
+      in `constraints`: it's two-state (no coherent `false`) so it fails the tri-state
+      test that defines constraint membership, and it never gates results. Single enum
+      makes "cheap and fast" unrepresentable by design, dodging a contradiction.
+- [x] **D2 — `unhandled` field.** DECIDED: yes, but *beside* TripIntent, not on it.
+      Parser returns `ParseResult { intent: TripIntent; unhandled: string | null }`.
+      `unhandled` is transient (fresh per utterance, never persisted), never a chip,
+      never diffed — for recognized-but-unsupported clauses only (parse failures still
+      take the Zod-gate → heal → retry path). Shape is a single `string | null`:
+      echo-only display text quoting the user's clause back (readably formatted),
+      introducing no new numbers/facts — a sanctioned carve-out to the number-provenance
+      invariant (provenance is the user, not the model). Engine reaction: non-blocking.
+      `GapOutcome` gains `ready_with_notice` (search streams AND the echo renders);
+      missing destination still hard-blocks and is adjudicated first;
+      `checkGaps(intent, unhandled)` decides both.
+      UI note (M5, non-blocking): gaps surface as chip-row prompting states (empty chip
+      + registry typeahead), never chat bubbles or modals — there is no chat surface.
 
 Non-blocking, decide before the schema is considered frozen:
 
@@ -38,7 +53,7 @@ Scaffold (Next 16 / TS 5 strict / Tailwind 4 / Vitest / ai@6 + openrouter provid
 TripIntent schema + IntentDiff types + place registry, engine normalize/diff/gaps,
 7-fixture parser set with self-consistency tests, allowlist import guards, ARCHITECTURE.md.
 
-## M1 — Parser (blocked on D1, D2)
+## M1 — Parser (unblocked; D1, D2 decided)
 
 The LLM boundary for words → TripIntent.
 

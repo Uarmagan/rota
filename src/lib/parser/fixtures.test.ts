@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computeIntentDiff } from '../engine/diff'
+import { checkGaps } from '../engine/gaps'
 import { canonicalizePlaces } from '../engine/normalize'
 import { tripIntentSchema } from '../schema/trip-intent'
 import { parserFixtures } from './fixtures'
@@ -25,6 +26,30 @@ describe.each(parserFixtures.map((f) => [f.name, f] as const))(
         (c) => c.field,
       )
       expect([...fields].sort()).toEqual([...fixture.expectedChangedFields].sort())
+    })
+
+    it('expectedUnhandled is null or a non-empty string', () => {
+      expect(
+        typeof fixture.expectedUnhandled === 'string'
+          ? fixture.expectedUnhandled.length > 0
+          : fixture.expectedUnhandled === null,
+      ).toBe(true)
+    })
+
+    it('a destination produces the expected ready gap outcome', () => {
+      if (fixture.expected.destination) {
+        const expectedOutcome =
+          fixture.expectedUnhandled === null
+            ? { kind: 'ready' }
+            : {
+                kind: 'ready_with_notice',
+                unhandled: fixture.expectedUnhandled,
+              }
+
+        expect(checkGaps(fixture.expected, fixture.expectedUnhandled)).toEqual(
+          expectedOutcome,
+        )
+      }
     })
   },
 )
