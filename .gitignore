@@ -21,3 +21,6 @@ npm-debug.log*
 
 # typescript
 *.tsbuildinfo
+
+# claude code machine-local settings
+.claude/settings.local.json
