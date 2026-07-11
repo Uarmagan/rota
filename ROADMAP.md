@@ -10,8 +10,11 @@ items from Open decisions into the schema/PRD and note the choice inline.
   schema is considered frozen for MVP (D1 `priority`, D2 `ParseResult`/`unhandled` +
   `GapOutcome`, D3 single-airport registry, D4 defaults, D5 exploratory follow-up).
   Typecheck + 70 tests green.
-- **Current:** M1 is unblocked and the parser prompt can be built against the frozen
-  schema. M2 and M3 are also unblocked and can run in parallel.
+- **Done:** M1 parser (2026-07-10): parser seam, retry policy, direct `@ai-sdk/openai`
+  with default `gpt-5.6-luna`, few-shot prompt, 25 fixtures, `pnpm eval`. Live eval
+  passed 25/25 fixtures (125/125 reps, 0 retries, ~1.05s p50) after one eval-driven
+  policy flip (`next <weekday>`, below).
+- **Current:** M2 and M3, unblocked and parallelizable. M4 needs M1 (done) + M3.
 
 ## Open decisions
 
@@ -27,7 +30,7 @@ Blocking M1 (the parser prompt is built around the schema, so these change its c
       Parser returns `ParseResult { intent: TripIntent; unhandled: string | null }`.
       `unhandled` is transient (fresh per utterance, never persisted), never a chip,
       never diffed — for recognized-but-unsupported clauses only (parse failures still
-      take the Zod-gate → heal → retry path). Shape is a single `string | null`:
+      take the Zod-gate → feedback-retry path). Shape is a single `string | null`:
       echo-only display text quoting the user's clause back (readably formatted),
       introducing no new numbers/facts — a sanctioned carve-out to the number-provenance
       invariant (provenance is the user, not the model). Engine reaction: non-blocking.
@@ -66,21 +69,38 @@ Scaffold (Next 16 / TS 5 strict / Tailwind 4 / Vitest / ai@6 + openrouter provid
 TripIntent schema + IntentDiff types + place registry, engine normalize/diff/gaps,
 7-fixture parser set with self-consistency tests, allowlist import guards, ARCHITECTURE.md.
 
-## M1 — Parser (unblocked; D1, D2 decided)
+## M1 — Parser ✅
 
 The LLM boundary for words → TripIntent.
 
-- [ ] `IntentParser` interface + OpenRouter implementation (`generateText` +
-      `Output.object`, response-healing enabled, model from `ROTA_MODEL`)
-- [ ] System prompt: full-state re-emission rules, ParserContext (today +
+- [x] `IntentParser` returning `ParseResult` + direct OpenAI implementation
+      (`generateText` + `Output.object`, model from `ROTA_MODEL`)
+- [x] System prompt: full-state re-emission rules, ParserContext (today +
       supportedPlaces), hostile-input identity policy
-- [ ] Parse wrapper: Zod gate → `canonicalizePlaces` → retry/heal on rejection
-- [ ] Live-model eval script running the fixture suite (`npm run eval`), reusing the
+- [x] Parse wrapper: Zod gate + registry-membership gate → one feedback retry;
+      canonicalization remains the next engine pipeline step
+- [x] Live-model eval script running the fixture suite (`pnpm eval`), reusing the
       fixture assertions
-- [ ] Expand fixtures to the PRD's 20–25: typos, relative dates ("next friday"),
+- [x] Expand fixtures to the PRD's 20–25: typos, relative dates ("next friday"),
       more refinement-against-state, contradiction, more hostile
 - **Done when:** eval passes the full fixture set against the default model, and the
   self-consistency suite still passes without network.
+
+### Decided during M1 prep
+
+- Parser returns raw, pre-canonicalization `ParseResult` and never imports engine.
+- One feedback retry covers validation and membership; the SDK owns transport retry.
+- OpenAI is called directly; default model is `gpt-5.6-luna` at lowest reasoning.
+- Prompt uses four held-out examples disjoint from the fixture utterances.
+- The model resolves relative dates; Zod refinements remain the hard date gate.
+- Eval runs five reps; hostile fixtures require 5/5 and all others at least 4/5.
+- Unsupported cities become `unhandled` with a null place, never a fabricated IATA.
+- Later clauses win utterance-internal contradictions.
+- `next <weekday>` is that weekday of the FOLLOWING Mon-Sun week (bare "friday"/"this
+  friday" is the next occurrence); following week means next Mon-Sun week. Flipped
+  from strictly-after-today on live-eval evidence: the model, like most speakers,
+  reads "next friday" across the week boundary (3/10 before vs 10/10 after).
+- Hostile and meta-instruction text is dropped silently and never echoed.
 
 ## M2 — Engine completion (unblocked)
 

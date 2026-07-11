@@ -11,7 +11,7 @@ export class UnknownPlaceError extends Error {
 // Pipeline step 2: map every parser-emitted place to its registry entry, discarding
 // model-authored city labels so semantically identical re-emissions stay deep-equal.
 // An unknown code rejects the parse — the caller treats it like any other parse
-// failure (retry/heal), it never reaches state.
+// failure (feedback retry), it never reaches state.
 export function canonicalizePlaces(intent: TripIntent): TripIntent {
   return {
     ...intent,

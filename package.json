@@ -7,12 +7,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "eval": "tsx --env-file-if-exists=.env scripts/eval.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@openrouter/ai-sdk-provider": "^2.10.0",
+    "@ai-sdk/openai": "^3.0.84",
     "ai": "^6.0.222",
     "next": "^16.2.10",
     "react": "^19.2.7",
@@ -26,6 +27,7 @@
     "@types/react-dom": "^19.2.3",
     "postcss": "^8.5.16",
     "tailwindcss": "^4.3.2",
+    "tsx": "^4.23.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   }

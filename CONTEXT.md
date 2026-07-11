@@ -78,8 +78,9 @@ _Avoid_: clarification flow, wizard
 
 **Unhandled**:
 A recognized-but-unsupported clause the parser could not map to any field ("exactly one
-connection", "window seat") — NOT a parse failure (those take the Zod-gate → heal →
-retry path). Emitted as `unhandled: string | null` *beside* the TripIntent in the
+connection", "window seat") — NOT a parse failure (those take the feedback-retry
+path). Hostile or meta-instruction text is also not unhandled: it is dropped silently
+and never echoed. Emitted as `unhandled: string | null` *beside* the TripIntent in the
 parser's `ParseResult`, never as a field on it: it is transient (fresh per utterance,
 never persisted), never a chip, never diffed. Echo-only display text — it quotes the
 user's own clause back, introducing no new numbers or facts, which is the one narrow,
@@ -210,8 +211,8 @@ _Avoid_: "the AI" for anything outside these two
 
 **Allowlist guard**:
 The test that makes the LLM boundary checkable: engine may import only zod/schema/engine,
-and `ai`/`@openrouter/*` may appear only under parser and prose. An allowlist — new
-dependencies are guilty until proven innocent.
+LLM packages may appear only under parser and prose, and parser never imports engine.
+An allowlist — new dependencies are guilty until proven innocent.
 _Avoid_: import lint, boundary check
 
 **Parser**:
@@ -247,9 +248,14 @@ claim-binding.
 > This is a carve-out, not a precedent: it does NOT license the model to phrase any
 > figure it wasn't handed by the user. Do not widen it.
 
-**Response healing**:
-The provider plugin that repairs malformed model JSON before Zod validation. The Zod
-gate stays the hard boundary; healing only reduces retries.
+**Feedback retry**:
+The single re-ask with validation errors appended when model output fails the Zod gate
+or registry membership. The Zod gate stays the hard boundary.
+
+**Parse failure**:
+Invalid output after the feedback retry, surfaced as a typed error and eventually a
+visible rephrase prompt. Distinct from [[Unhandled]] and hostile [[Identity (hostile
+input)]]; a parse failure is never silent.
 
 ### Testing language
 
