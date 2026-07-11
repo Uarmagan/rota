@@ -39,6 +39,32 @@ describe('import boundaries', () => {
     }
   })
 
+  it('availability imports only zod, schema, engine, and availability (allowlist)', () => {
+    const availabilityDir = join(SRC, 'lib', 'availability')
+    for (const file of sourceFiles(availabilityDir)) {
+      const isTest = file.endsWith('.test.ts')
+      if (!isTest) {
+        expect(readFileSync(file, 'utf8')).not.toMatch(
+          /Math\.random|Date\.now|new Date\(\)/,
+        )
+      }
+      for (const spec of importSpecifiers(file)) {
+        if (spec === 'zod') continue
+        if (isTest && spec === 'vitest') continue
+        expect(spec.startsWith('.'), `${file} imports '${spec}'`).toBe(true)
+        const target = resolve(join(file, '..'), spec)
+        const allowed =
+          target.startsWith(join(SRC, 'lib', 'availability')) ||
+          target.startsWith(join(SRC, 'lib', 'engine')) ||
+          target.startsWith(join(SRC, 'lib', 'schema'))
+        expect(
+          allowed,
+          `${file} imports outside availability/engine/schema: '${spec}'`,
+        ).toBe(true)
+      }
+    }
+  })
+
   it('LLM packages are imported only under parser/ and prose/', () => {
     for (const file of sourceFiles(SRC)) {
       const allowed =
