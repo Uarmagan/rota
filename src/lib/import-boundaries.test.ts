@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 // "Module map"). Deliberately dumb: regex over import specifiers, no AST.
 
 const SRC = resolve(__dirname, '..')
-const LLM_PACKAGES = /^(ai|@openrouter\/|@ai-sdk\/)/
+const LLM_PACKAGES = /^(ai$|@ai-sdk\/)/
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -50,6 +50,22 @@ describe('import boundaries', () => {
           LLM_PACKAGES.test(spec),
           `${file} imports LLM package '${spec}' outside the LLM boundary`,
         ).toBe(false)
+      }
+    }
+  })
+
+  it('parser non-test files import only LLM packages, zod, schema, and parser files', () => {
+    const parserDir = join(SRC, 'lib', 'parser')
+    for (const file of sourceFiles(parserDir)) {
+      if (file.endsWith('.test.ts')) continue
+      for (const spec of importSpecifiers(file)) {
+        if (spec === 'zod' || LLM_PACKAGES.test(spec)) continue
+        expect(spec.startsWith('.'), `${file} imports '${spec}'`).toBe(true)
+        const target = resolve(join(file, '..'), spec)
+        const allowed =
+          target.startsWith(join(SRC, 'lib', 'parser')) ||
+          target.startsWith(join(SRC, 'lib', 'schema'))
+        expect(allowed, `${file} imports outside parser/schema: '${spec}'`).toBe(true)
       }
     }
   })

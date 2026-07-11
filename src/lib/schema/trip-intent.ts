@@ -6,7 +6,7 @@ import { z } from 'zod'
 //
 // The .refine checks below do not survive conversion to the JSON schema the model
 // sees; they run in the post-parse Zod gate, where failures trigger the
-// response-healing/retry path.
+// feedback-retry path.
 
 export const CABINS = ['economy', 'premium_economy', 'business', 'first'] as const
 export const cabinSchema = z.enum(CABINS)
@@ -108,7 +108,7 @@ export type TripIntent = z.infer<typeof tripIntentSchema>
 // opposite persistence semantics from every TripIntent field. It holds echo-only display
 // text for recognized-but-unsupported clauses ("exactly one connection"), quoting the
 // user's own words back and introducing no new numbers or facts. Parse *failures* (bad
-// JSON, unknown IATA) never reach here — they take the Zod-gate/heal/retry path. The
+// JSON, unknown IATA) never reach here — they take the Zod-gate/feedback-retry path. The
 // model emits this single object via Output.object; the engine splits it. See
 // docs/adr/0002.
 export const parseResultSchema = z.object({

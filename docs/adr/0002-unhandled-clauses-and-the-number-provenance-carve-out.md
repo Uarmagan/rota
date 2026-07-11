@@ -15,7 +15,7 @@ clauses (see [D2 in ROADMAP.md](../../ROADMAP.md)).
   broaden a crisp definition ("the complete structured description of the trip") and
   invite a field with inverted persistence rules into a "re-emit complete state" object.
 - **Scope: recognized-but-unsupported only.** Parse failures (a typo'd date) take the
-  Zod-gate → heal → retry path. `unhandled` means "I understood these words and
+  Zod-gate → feedback-retry path. `unhandled` means "I understood these words and
   genuinely cannot represent them," not "I failed to parse."
 - **Single `string | null`, echo-only.** The consumer is one deterministic follow-up
   ("never a wall of questions"), so a list buys nothing. The text quotes the user's own
