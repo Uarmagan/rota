@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmptyTripIntent } from '../schema/trip-intent'
 import {
   canonicalizePlaces,
+  fillDefaults,
   fillAssumptions,
   UnknownPlaceError,
 } from './normalize'
@@ -54,5 +55,53 @@ describe('fillAssumptions', () => {
       origin: { iata: 'SFO', city: 'San Francisco', assumed: false },
     }
     expect(fillAssumptions(intent, config)).toBe(intent)
+  })
+})
+
+describe('fillDefaults', () => {
+  it('fills null cabin and travelers', () => {
+    const result = fillDefaults(createEmptyTripIntent())
+
+    expect(result.cabin).toBe('economy')
+    expect(result.travelers).toBe(1)
+  })
+
+  it('preserves stated cabin and travelers', () => {
+    const intent = {
+      ...createEmptyTripIntent(),
+      cabin: 'business' as const,
+      travelers: 4,
+    }
+
+    expect(fillDefaults(intent)).toEqual(intent)
+  })
+
+  it('leaves every other field untouched', () => {
+    const intent = {
+      ...createEmptyTripIntent(),
+      destination: { iata: 'NRT', city: 'Tokyo' },
+      dates: {
+        earliest: '2027-02-10',
+        latest: '2027-02-14',
+        flexibility: 'flexible' as const,
+      },
+      priority: 'fastest' as const,
+      constraints: {
+        nonstop: 'preferred' as const,
+        arriveBy: '17:00',
+        departAfter: '09:00',
+        avoidRedeye: false,
+        avoidLateArrival: true,
+      },
+    }
+
+    const result = fillDefaults(intent)
+
+    expect(result).toEqual({
+      ...intent,
+      cabin: 'economy',
+      travelers: 1,
+    })
+    expect(result.origin).toBeNull()
   })
 })

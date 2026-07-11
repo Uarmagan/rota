@@ -1,5 +1,8 @@
 import { findSupportedPlace } from '../schema/places'
-import type { Place, TripIntent } from '../schema/trip-intent'
+import type { Cabin, Place, TripIntent } from '../schema/trip-intent'
+
+export const DEFAULT_CABIN: Cabin = 'economy'
+export const DEFAULT_TRAVELERS = 1
 
 export class UnknownPlaceError extends Error {
   constructor(readonly iata: string) {
@@ -36,6 +39,16 @@ export function fillAssumptions(
   return {
     ...intent,
     origin: { ...canonical(config.defaultOrigin.iata), assumed: true },
+  }
+}
+
+// Pipeline step 3: safe near-universal fallbacks render as plain editable chips,
+// distinct from the flagged origin assumption.
+export function fillDefaults(intent: TripIntent): TripIntent {
+  return {
+    ...intent,
+    cabin: intent.cabin ?? DEFAULT_CABIN,
+    travelers: intent.travelers ?? DEFAULT_TRAVELERS,
   }
 }
 
