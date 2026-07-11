@@ -14,7 +14,14 @@ items from Open decisions into the schema/PRD and note the choice inline.
   with default `gpt-5.6-luna`, few-shot prompt, 25 fixtures, `pnpm eval`. Live eval
   passed 25/25 fixtures (125/125 reps, 0 retries, ~1.05s p50) after one eval-driven
   policy flip (`next <weekday>`, below).
-- **Current:** M2 and M3, unblocked and parallelizable. M4 needs M1 (done) + M3.
+- **Done:** M2 deterministic engine (2026-07-10): filtering, ranking, award pricing,
+  explanation facts, local-clock helpers, and visible defaults. All 54 focused engine
+  tests pass.
+- **Done:** M3 simulated availability (2026-07-10): four deterministic fictional
+  sources, seeded inventory, seat scarcity, and ordered latency-shaped batches. All
+  30 focused availability/boundary tests pass.
+- **Current:** M4 API routes. M1 and M3 prerequisites are complete; the combined
+  M1–M3 suite passes 218 tests across 17 files.
 
 ## Open decisions
 
@@ -102,30 +109,30 @@ The LLM boundary for words → TripIntent.
   reads "next friday" across the week boundary (3/10 before vs 10/10 after).
 - Hostile and meta-instruction text is dropped silently and never echoed.
 
-## M2 — Engine completion (unblocked)
+## M2 — Engine completion ✅
 
 The deterministic core over flight data. Pure TS, no mocks.
 
-- [ ] `types.ts`: `FlightOption` (segments, times, duration, stops, cabin, source,
+- [x] `types.ts`: `FlightOption` (segments, times, duration, stops, cabin, source,
       award price) + `ExplanationFacts`
-- [ ] `filter.ts`: apply all TripIntent constraints (incl. `avoidLateArrival` /
+- [x] `filter.ts`: apply all TripIntent constraints (incl. `avoidLateArrival` /
       red-eye windows — engine defines 00:00–05:00 local)
-- [ ] `rank.ts`: scoring + best-match, stable under incremental batches
+- [x] `rank.ts`: scoring + best-match, stable under incremental batches
       (nonstop 'preferred' boosts, 'required' filters)
-- [ ] `pricing.ts`: award pricing math (miles + fees) from generator inputs
-- [ ] `explain.ts`: computed comparisons within the result set
+- [x] `pricing.ts`: award pricing math (miles + fees) from generator inputs
+- [x] `explain.ts`: computed comparisons within the result set
 - **Done when:** every module unit-tested; import-boundary guard still green.
 
-## M3 — Availability simulation (unblocked)
+## M3 — Availability simulation ✅
 
-- [ ] `AvailabilityProvider` interface + 3–4 fictional sources
-- [ ] Seeded flight generator: realistic shapes, scarce premium cabins, variable pricing
-- [ ] Per-source latency profiles; first batch ≤ 600ms (the <3s budget in
+- [x] `AvailabilityProvider` interface + 3–4 fictional sources
+- [x] Seeded flight generator: realistic shapes, scarce premium cabins, variable pricing
+- [x] Per-source latency profiles; first batch ≤ 600ms (the <3s budget in
       ARCHITECTURE.md depends on this)
 - **Done when:** seeded runs are deterministic in tests; batch ordering and latency
   shape asserted.
 
-## M4 — API routes (needs M1 + M3)
+## M4 — API routes (unblocked)
 
 - [ ] `POST /api/parse`: `{currentIntent, utterance}` → full TripIntent (pipeline
       steps 1–3)
