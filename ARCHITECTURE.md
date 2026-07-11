@@ -51,11 +51,12 @@ src/
                     realistic per-source latency profiles and scarce premium
                     inventory. Fake data, real async streaming. Seedable for
                     deterministic tests.
-    prose/          LLM boundary #2. ResultExplainer interface: turns
-                    ExplanationFacts into one or two lines of copy. Includes the
-                    number-provenance guard (below).
-  app/              Next.js layer. Thin orchestration only: pages, API routes,
-                    streaming plumbing. No business logic.
+    prose/          LLM boundary #2. ResultExplainer turns ExplanationFacts into
+                    { text, source } and never throws. A derived allowlist guards
+                    digits and number words; failure uses a deterministic fallback.
+  app/              Next.js layer. Thin orchestration only. POST /api/parse runs
+                    steps 1–3 plus gaps; GET /api/search streams raw source batches;
+                    POST /api/explain turns client-computed facts into guarded copy.
 ```
 
 Dependency direction (anything else is a violation):
@@ -68,8 +69,9 @@ engine  <-  availability, prose  <-  app
 
 Enforced as an **allowlist**, not a denylist: a Vitest guard asserts (a) files under
 `src/lib/engine` import only `zod`, `src/lib/schema`, and other engine files, (b) LLM
-packages are imported only under `src/lib/parser` and `src/lib/prose`, and (c) parser
-non-test files import only LLM packages, Zod, schema, and parser modules — never engine.
+packages are imported only under `src/lib/parser` and `src/lib/prose`, (c) parser
+non-test files import only LLM packages, Zod, schema, and parser modules — never engine,
+and (d) prose non-test files import only LLM packages, Zod, schema, engine, and prose.
 Because the engine is pure TS with no framework dependency, it runs identically on the
 server and in the client bundle — the client re-ranks streamed results locally with the
 same code the tests exercise.
@@ -98,11 +100,10 @@ diff.
   5. gaps()                  engine: destination missing or representable-constraint
                              contradiction -> one targeted follow-up. The LLM never
                              decides whether or what to ask.
-  6. search stream           app/api/search (ReadableStream/SSE). Availability
-                             sources respond batch-by-batch; each batch flows through
-                             engine filter + rank incrementally; best-match badge
-                             re-computes per batch. Top results get ExplanationFacts
-                             (engine) phrased by prose.
+  6. search stream           GET /api/search streams raw SourceBatches over SSE. The
+                             client runs engine filter + rank + best-match + facts per
+                             batch with the same isomorphic code the tests exercise,
+                             then POSTs top-result facts to /api/explain for phrasing.
 ```
 
 Refinements ("actually business class, and nonstop if possible") POST the live chip
@@ -144,7 +145,7 @@ interface IntentParser {
 }
 
 interface ResultExplainer {
-  explain(facts: ExplanationFacts): Promise<string>
+  explain(facts: ExplanationFacts): Promise<Explanation>
 }
 ```
 
@@ -162,6 +163,12 @@ feedback retry; the SDK separately gets one transport retry. Exhaustion throws t
 valid and never retried. Refusal and token-cutoff are parse failures, not malformed JSON
 to retry blindly. The parser duplicates the seven-entry membership lookup rather than
 importing engine normalization; ADR 0006 records why.
+
+The OpenAI `ResultExplainer` receives only pre-rendered numeric strings derived from
+`ExplanationFacts`; the model quotes those values rather than formatting or converting
+them. It has no feedback retry: empty, oversized, rejected, or failed prose falls back
+immediately to a deterministic template because prose is decorative while parsing is
+load-bearing. The result carries `source: 'model' | 'fallback'` for observability.
 
 Hostile or nonsense input degrades to identity: an utterance that is primarily a
 meta-instruction (prompt injection, out-of-domain demands, gibberish) re-emits
@@ -192,4 +199,8 @@ the feedback-retry path.
   fixture self-consistency remains model-independent.
 - `availability`: seeded simulation, deterministic assertions on batch ordering and
   latency shape.
+- `prose`: deterministic renderer and guard tests plus offline adapter tests. Several
+  representative fact fixtures assert the fallback is guard-clean by construction.
+- API routes: web-standard handler tests inject parser/prose stubs or an instant-delay
+  provider, exercise the full SSE body, and require no Next runtime or network.
 - Boundary guards: the allowlist import tests described in the module map.

@@ -197,6 +197,17 @@ asserting any real-world points facts.
 The one-or-two-line explanation on a top result, phrased strictly from
 ExplanationFacts. If the engine didn't compute it, the line can't say it.
 
+**Fallback template**:
+The deterministic why-this-result line rendered from ExplanationFacts when model copy
+fails the number-provenance guard or the call fails. It is guard-clean by construction,
+which lets prose fail safe without retrying.
+_Avoid_: error message, placeholder
+
+**Rendered values**:
+The engine-formatted numeric strings ("13h 35m", "145,000 miles + $48") handed to the
+prose model to quote verbatim. The model phrases around numbers it was given; it never
+formats or converts one.
+
 ### Boundaries
 
 **Engine**:
@@ -230,7 +241,9 @@ constraint") — the only raw material prose may use.
 **Number-provenance guard**:
 The check that every digit and number word in prose corresponds to a value in the
 facts, else a deterministic template renders instead. Enforces provenance, not
-claim-binding.
+claim-binding. The allowed set includes deterministic display decompositions such as
+hours/minutes and 12-hour clock values, so recognizing an engine number in copywriter
+form is not the model originating one.
 
 > **Defend this invariant.** "No number a user sees originates from the model" is the
 > load-bearing promise of the whole architecture — it's what separates Rota from a

@@ -96,6 +96,26 @@ describe('import boundaries', () => {
     }
   })
 
+  it('prose non-test files import only LLM packages, zod, schema, engine, and prose files', () => {
+    const proseDir = join(SRC, 'lib', 'prose')
+    for (const file of sourceFiles(proseDir)) {
+      if (file.endsWith('.test.ts')) continue
+      for (const spec of importSpecifiers(file)) {
+        if (spec === 'zod' || LLM_PACKAGES.test(spec)) continue
+        expect(spec.startsWith('.'), `${file} imports '${spec}'`).toBe(true)
+        const target = resolve(join(file, '..'), spec)
+        const allowed =
+          target.startsWith(join(SRC, 'lib', 'prose')) ||
+          target.startsWith(join(SRC, 'lib', 'engine')) ||
+          target.startsWith(join(SRC, 'lib', 'schema'))
+        expect(
+          allowed,
+          `${file} imports outside prose/engine/schema: '${spec}'`,
+        ).toBe(true)
+      }
+    }
+  })
+
   it('schema imports nothing but zod and other schema files', () => {
     const schemaDir = join(SRC, 'lib', 'schema')
     for (const file of sourceFiles(schemaDir)) {

@@ -20,8 +20,10 @@ items from Open decisions into the schema/PRD and note the choice inline.
 - **Done:** M3 simulated availability (2026-07-10): four deterministic fictional
   sources, seeded inventory, seat scarcity, and ordered latency-shaped batches. All
   30 focused availability/boundary tests pass.
-- **Current:** M4 API routes. M1 and M3 prerequisites are complete; the combined
-  M1–M3 suite passes 218 tests across 17 files.
+- **Done:** M4 API routes + prose (2026-07-11): three thin handlers, raw-batch SSE,
+  guarded result prose, and deterministic fallback. The full suite passes 268 tests
+  across 25 files.
+- **Current:** M5 UI.
 
 ## Open decisions
 
@@ -132,14 +134,36 @@ The deterministic core over flight data. Pure TS, no mocks.
 - **Done when:** seeded runs are deterministic in tests; batch ordering and latency
   shape asserted.
 
-## M4 — API routes (unblocked)
+## M4 — API routes + prose ✅
 
-- [ ] `POST /api/parse`: `{currentIntent, utterance}` → full TripIntent (pipeline
-      steps 1–3)
-- [ ] `GET/POST /api/search`: ReadableStream/SSE of source batches
-- [ ] `prose/` ResultExplainer + number-provenance guard (digits AND number words)
-- **Done when:** curl-level smoke: lazy utterance → parsed intent → streamed batches,
-  timed under budget.
+- [x] `POST /api/parse`: `{ currentIntent, utterance }` → normalized
+      `{ intent, gap }` (pipeline steps 1–3 plus deterministic gap policy)
+- [x] `GET /api/search`: ReadableStream/SSE of raw source batches, then `done`
+- [x] `POST /api/explain`: schema-gated client-computed facts → guarded copy
+- [x] `prose/` ResultExplainer + number-provenance guard (digits AND number words) +
+      deterministic fallback
+- **Done when:** handler tests cover the three contracts and the recorded operator curl
+  smoke signs off the live lazy-utterance → parsed-intent → streamed-batches budget.
+
+### Decided during M4 prep
+
+- Search SSE carries raw `SourceBatch` values; the client owns filter, rank,
+  best-match, and facts computation with the isomorphic engine.
+- `/api/parse` runs parse, canonicalization, assumption/default filling, and gaps;
+  IntentDiff stays client-side presentation state.
+- Search is `GET` with the complete intent as URL-encoded JSON and terminal `done` SSE.
+- Exported web-standard handlers inject parser, provider, and explainer dependencies.
+- ResultExplainer returns `{ text, source }`, never throws, and falls back without a
+  feedback retry.
+- The number guard admits only fact-derived numeric values and display decompositions;
+  vague quantity words always fail.
+- The prose prompt receives deterministic rendered strings and uses plain
+  `generateText` at no reasoning effort.
+- `/api/explain` validates through an engine-owned Zod schema pinned to
+  `ExplanationFacts`.
+- App wiring uses UTC `isoToday()` and assumes `{ ORD, Chicago }` when origin is absent.
+- HTTP status contracts distinguish invalid requests, parser output failures,
+  transport failures, and non-searchable intents.
 
 ## M5 — UI (needs M4; PRD says it earns nothing until the loops work)
 
