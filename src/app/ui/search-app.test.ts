@@ -392,9 +392,16 @@ describe('SearchApp', () => {
   it('completes the lazy-query, direct-edit, re-search, and result-details journey', async () => {
     const user = userEvent.setup()
     const router = new FetchRouter()
-    const resultFrames = [batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]
+    const businessOption: FlightOption = {
+      ...BETTER_OPTION,
+      id: 'aurora-business-001',
+      cabin: 'business',
+    }
     router.parse.push(parseResponse(SEARCH_INTENT))
-    router.search.push(sseResponse(resultFrames), sseResponse(resultFrames))
+    router.search.push(
+      sseResponse([batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]),
+      sseResponse([batchFrame(batch('aurora', businessOption)), doneFrame()]),
+    )
     router.explain.push(
       Response.json({ text: 'Initial why line.' }),
       Response.json({ text: 'Matching why line after the direct edit.' }),
@@ -406,8 +413,8 @@ describe('SearchApp', () => {
     expect(screen.getByText('assumed')).toBeTruthy()
     await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(1))
 
-    await user.click(screen.getByRole('button', { name: /travelers.*2/i }))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Travelers' }), '3')
+    await user.click(screen.getByRole('button', { name: /cabin.*economy/i }))
+    await user.click(screen.getByRole('button', { name: 'business' }))
     await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(2))
     await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(2))
     expect(router.requestsFor('/api/parse')).toHaveLength(1)

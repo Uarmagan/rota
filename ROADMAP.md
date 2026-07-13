@@ -169,13 +169,16 @@ The deterministic core over flight data. Pure TS, no mocks.
 
 - [x] Single input, chips row rendered from TripIntent, diff-driven change animation
 - [x] Assumed-origin chip label + one-tap edit (chip taps skip the parser)
+- [x] Direct editors for every rendered intent chip, with schema-valid engine
+      transitions and parser-free re-search
 - [x] Targeted follow-up rendering (gap policy)
 - [x] Streaming results grouped by source: skeletons, arrival animation, live
       best-match re-badging
 - [x] "Why this result" line from prose module
+- [x] Keyboard-accessible result summaries with inline deterministic details
 - **Done when:** the PRD's 60-second demo path works end to end by hand
-  (implementation landed 2026-07-11; the by-hand walkthrough is still owed —
-  tracked in issue #5).
+  (initial UI landed 2026-07-11; complete direct editing and result expansion
+  landed 2026-07-13; the by-hand walkthrough is still owed — tracked in issue #5).
 
 ### Decided during M5 prep
 
@@ -191,8 +194,9 @@ The deterministic core over flight data. Pure TS, no mocks.
   whether dates deserve promotion to a real follow-up is an open M6 question.
 - Filtered-out inventory is visible ("n options hidden by your filters"), keeping
   principle 1 honest at the results layer.
-- No component library yet; shadcn (popover/command) reconsidered when chip editing
-  grows beyond the origin picker.
+- Native controls remain sufficient for the complete M5 chip-editor set; no component
+  library was added. Reconsider a shared primitive only with a broader design-system
+  need, not for these field editors alone.
 
 ## M6 — Demo hardening
 
