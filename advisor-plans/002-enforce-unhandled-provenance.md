@@ -23,6 +23,9 @@
 - **Depends on**: none
 - **Category**: bug
 - **Planned at**: commit `32d5f8f`, 2026-07-13
+- **Execution status**: BLOCKED after two review rounds. The attempted ordered-subsequence
+  validator still allowed meaning-changing omission and token reassociation. A future
+  executor must implement the contiguous clause-span contract below from a clean branch.
 
 ## Why this matters
 
@@ -110,9 +113,16 @@ Requirements:
 - Trim whitespace; whitespace-only becomes `null`.
 - Normalize case, Unicode apostrophes/dashes, and punctuation for comparison without
   changing the displayed value.
-- Every meaningful lexical token in `unhandled` must occur in the utterance. Permit only
-  a tiny documented connective allowlist needed to join multiple clauses (for example
-  `and`); never allow nouns, adjectives, units, or numeric words as invented glue.
+- Each normalized `unhandled` clause must be a contiguous token span of the utterance;
+  arbitrary subsequences are forbidden because they can drop negation or reassociate a
+  number/symbol with a different phrase. Permit only a tiny documented connective
+  allowlist needed to join multiple independently contiguous clauses (for example
+  `and`); never allow nouns, adjectives, units, numeric words, or semantic symbols as
+  invented glue.
+- Account for the complete candidate. Comparison-neutral punctuation may normalize
+  away, but comparators, currency/percent/unit symbols, degree marks, arithmetic signs,
+  and alphanumeric hyphens are provenance-bearing tokens whose order and multiplicity
+  must match the same contiguous source span.
 - Every numeric value in `unhandled`, whether digits or cardinal words zero through
   ninety-nine, must have an equivalent value in the utterance. Accept safe display
   normalization such as user `one` -> echo `1`; reject an echo value absent from input.
@@ -163,7 +173,9 @@ Use `src/lib/prose/number-guard.test.ts` as the table-driven style exemplar and
 `src/lib/parser/openai-intent-parser.test.ts` for mocked model attempts. Tests must prove
 both halves of the contract: lexical echo provenance and numeric provenance. Include at
 least one multiple-clause fixture so the connective rule is intentional rather than an
-accidental loophole.
+accidental loophole. Add regressions that reject `not refundable` -> `refundable`,
+`under 5 hours, budget 500 dollars` -> `under 500 dollars`, and symbol/number
+reassociation; exact degree/unit-symbol echoes must remain valid.
 
 ## Done criteria
 

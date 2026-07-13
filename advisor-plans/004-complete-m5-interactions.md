@@ -83,7 +83,7 @@ Schema semantics to preserve:
 
 | Purpose | Command | Expected on success |
 |---|---|---|
-| Focused tests | `pnpm exec vitest run src/lib/engine/edit.test.ts src/app/ui/search-app.test.tsx src/app/ui/chips.test.tsx src/app/ui/results.test.tsx src/lib/import-boundaries.test.ts` | all pass |
+| Focused tests | `pnpm exec vitest run src/lib/engine/edit.test.ts src/app/ui/search-app.test.ts src/app/ui/chips.test.ts src/app/ui/results.test.ts src/lib/import-boundaries.test.ts` | all pass |
 | Full tests | `pnpm test` | all pass |
 | Typecheck | `pnpm typecheck` | exit 0 |
 | Build | `pnpm build` | exit 0 |
@@ -93,11 +93,14 @@ Schema semantics to preserve:
 **In scope**:
 
 - `src/lib/engine/edit.ts` and `edit.test.ts` (new pure update helper)
-- `src/app/ui/chips.tsx` and `chips.test.tsx` (new test)
-- `src/app/ui/results.tsx` and `results.test.tsx` (new test)
-- `src/app/ui/search-app.tsx` and `search-app.test.tsx`
+- `src/app/ui/chips.tsx` and `chips.test.ts` (new test; use `createElement` rather than
+  JSX so the repository's `*.test.ts` convention is preserved)
+- `src/app/ui/results.tsx` and `results.test.ts` (new test; same convention)
+- `src/app/ui/search-app.tsx` and `search-app.test.ts`
 - `src/app/ui/search.css` only for editor/expanded-row states that cannot be expressed
   with the existing Tailwind utilities
+- `ROADMAP.md` to record completion of the M5 interaction milestone, as required by the
+  repository guidelines
 
 **Out of scope**:
 
@@ -159,10 +162,12 @@ confirmation.
 
 ### Step 3: Use one direct-transition path in SearchApp
 
-Replace `pickOrigin` with a general `applyDirectEdit` that:
+Replace `pickOrigin` with a general `applyDirectEdit`. Centralize Plan 003's generation
+increment, abort, and spinner reset into one shared local invalidation helper, then have
+every direct edit use it. The transition path:
 
 1. Uses the pure helper to create the next full intent.
-2. Invalidates pending parse work using Plan 003's helper.
+2. Invalidates pending parse work using the centralized Plan 003 seam.
 3. Recomputes `checkGaps(next, null)` so transient notices do not persist.
 4. Calls the existing `applyIntent` for diff animation and re-search behavior.
 
@@ -203,11 +208,11 @@ Run focused tests, full tests, typecheck, and build.
 
 - `src/lib/engine/edit.test.ts`: every edit variant, normalization invariants, clearable
   versus non-clearable fields, date validity, and exact changed-field behavior.
-- `chips.test.tsx`: accessible open/close, keyboard selection, typed edit payloads, and
+- `chips.test.ts`: accessible open/close, keyboard selection, typed edit payloads, and
   only semantically valid Clear actions.
-- `results.test.tsx`: toggle semantics, deterministic details, one-open-at-a-time, best
+- `results.test.ts`: toggle semantics, deterministic details, one-open-at-a-time, best
   rebadging, and why-line binding.
-- `search-app.test.tsx`: no parser call on edits, gap recomputation, re-search/blocking,
+- `search-app.test.ts`: no parser call on edits, gap recomputation, re-search/blocking,
   transient notice clearing, and the full deterministic demo-contract journey.
 
 Model Vitest style on existing colocated tests and DOM setup on Plan 001. Avoid visual
