@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ExplanationFacts } from '../../../lib/engine/types'
 import type { ResultExplainer } from '../../../lib/prose/result-explainer'
+import type { ModelCallGate } from '../../../lib/server/request-gate'
 import { handleExplain } from './route'
 
 const facts: ExplanationFacts = {
@@ -27,12 +28,34 @@ describe('handleExplain', () => {
       explain: async () => ({ text: 'Best match.', source: 'model' }),
     }
 
-    const response = await handleExplain(explainRequest({ facts }), explainer)
+    const response = await handleExplain(
+      explainRequest({ facts }),
+      explainer,
+      allowingGate,
+    )
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       text: 'Best match.',
       source: 'model',
+    })
+  })
+
+  it('preserves fallback explainer success', async () => {
+    const explainer: ResultExplainer = {
+      explain: async () => ({ text: 'Best match.', source: 'fallback' }),
+    }
+
+    const response = await handleExplain(
+      explainRequest({ facts }),
+      explainer,
+      allowingGate,
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      text: 'Best match.',
+      source: 'fallback',
     })
   })
 
@@ -43,10 +66,117 @@ describe('handleExplain', () => {
     const response = await handleExplain(
       explainRequest({ facts: invalidFacts }),
       { explain },
+      allowingGate,
     )
 
     expect(response.status).toBe(400)
     expect(await response.json()).toMatchObject({ error: 'invalid_request' })
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized body before calling the explainer', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const response = await handleExplain(
+      new Request('http://localhost/api/explain', {
+        method: 'POST',
+        body: JSON.stringify({ value: 'x'.repeat(32 * 1024) }),
+      }),
+      { explain },
+      allowingGate,
+    )
+
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({ error: 'request_too_large' })
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('returns 429 without explaining when the model-call gate rejects', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const response = await handleExplain(
+      explainRequest({ facts }),
+      { explain },
+      rejectingGate,
+    )
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('3')
+    expect(await response.json()).toEqual({ error: 'rate_limited' })
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('releases the model-call permit when the explainer throws', async () => {
+    const release = vi.fn()
+    const gate: ModelCallGate = {
+      acquire: () => ({ ok: true, permit: { release } }),
+    }
+    const explainer: ResultExplainer = {
+      explain: async () => {
+        throw new Error('unexpected failure')
+      },
+    }
+
+    await expect(
+      handleExplain(explainRequest({ facts }), explainer, gate),
+    ).rejects.toThrow('unexpected failure')
+    expect(release).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a program over 100 Unicode code points before explaining', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const response = await handleExplain(
+      explainRequest({
+        facts: {
+          ...facts,
+          price: { ...facts.price, program: '🚀'.repeat(101) },
+        },
+      }),
+      { explain },
+      allowingGate,
+    )
+
+    expect(response.status).toBe(400)
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('accepts option and program labels at exactly 100 Unicode code points', async () => {
+    const explain = vi.fn(async () => ({ text: 'Best match.', source: 'model' as const }))
+    const response = await handleExplain(
+      explainRequest({
+        facts: {
+          ...facts,
+          optionId: '🚀'.repeat(100),
+          price: { ...facts.price, program: '🚀'.repeat(100) },
+        },
+      }),
+      { explain },
+      allowingGate,
+    )
+
+    expect(response.status).toBe(200)
+    expect(explain).toHaveBeenCalledOnce()
+  })
+
+  it('rejects an option id over 100 Unicode code points before explaining', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const response = await handleExplain(
+      explainRequest({ facts: { ...facts, optionId: '🚀'.repeat(101) } }),
+      { explain },
+      allowingGate,
+    )
+
+    expect(response.status).toBe(400)
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('rejects an excessive numeric fact before explaining', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const response = await handleExplain(
+      explainRequest({ facts: { ...facts, totalDurationMinutes: 10_081 } }),
+      { explain },
+      allowingGate,
+    )
+
+    expect(response.status).toBe(400)
     expect(explain).not.toHaveBeenCalled()
   })
 })
@@ -57,4 +187,12 @@ function explainRequest(body: unknown): Request {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
+}
+
+const rejectingGate: ModelCallGate = {
+  acquire: () => ({ ok: false, retryAfterMs: 2_001 }),
+}
+
+const allowingGate: ModelCallGate = {
+  acquire: () => ({ ok: true, permit: { release() {} } }),
 }

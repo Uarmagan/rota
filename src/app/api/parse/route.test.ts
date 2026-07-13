@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ParserError, type IntentParser } from '../../../lib/parser/intent-parser'
 import { createEmptyTripIntent, type ParseResult } from '../../../lib/schema/trip-intent'
+import type { ModelCallGate } from '../../../lib/server/request-gate'
 import { handleParse } from './route'
 
 const parsedIntent: ParseResult['intent'] = {
@@ -22,6 +23,7 @@ describe('handleParse', () => {
         utterance: 'tokyo in feb for 2',
       }),
       stubParser({ intent: parsedIntent, unhandled: null }),
+      allowingGate,
     )
 
     expect(response.status).toBe(200)
@@ -40,6 +42,7 @@ describe('handleParse', () => {
     const response = await handleParse(
       validRequest(),
       stubParser({ intent: createEmptyTripIntent(), unhandled: null }),
+      allowingGate,
     )
 
     expect(await response.json()).toMatchObject({
@@ -55,6 +58,7 @@ describe('handleParse', () => {
     const response = await handleParse(
       validRequest(),
       stubParser({ intent: parsedIntent, unhandled: 'window seat' }),
+      allowingGate,
     )
 
     expect(await response.json()).toMatchObject({
@@ -66,6 +70,7 @@ describe('handleParse', () => {
     const response = await handleParse(
       validRequest(),
       stubParser({ intent: createEmptyTripIntent(), unhandled: 'somewhere warm' }),
+      allowingGate,
     )
 
     expect(await response.json()).toMatchObject({
@@ -87,10 +92,27 @@ describe('handleParse', () => {
       },
     }
 
-    const response = await handleParse(validRequest(), parser)
+    const response = await handleParse(validRequest(), parser, allowingGate)
 
     expect(response.status).toBe(status)
     expect(await response.json()).toEqual({ error: reason })
+  })
+
+  it('releases the model-call permit when the parser throws', async () => {
+    const release = vi.fn()
+    const gate: ModelCallGate = {
+      acquire: () => ({ ok: true, permit: { release } }),
+    }
+    const parser: IntentParser = {
+      parse: async () => {
+        throw new Error('unexpected failure')
+      },
+    }
+
+    await expect(handleParse(validRequest(), parser, gate)).rejects.toThrow(
+      'unexpected failure',
+    )
+    expect(release).toHaveBeenCalledOnce()
   })
 
   it('rejects malformed JSON', async () => {
@@ -100,19 +122,114 @@ describe('handleParse', () => {
         body: '{',
       }),
       stubParser({ intent: parsedIntent, unhandled: null }),
+      allowingGate,
     )
 
     expect(response.status).toBe(400)
     expect(await response.json()).toMatchObject({ error: 'invalid_request' })
   })
 
+  it('rejects an oversized body before calling the parser', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const response = await handleParse(
+      new Request('http://localhost/api/parse', {
+        method: 'POST',
+        body: JSON.stringify({ value: 'x'.repeat(32 * 1024) }),
+      }),
+      { parse },
+      allowingGate,
+    )
+
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({ error: 'request_too_large' })
+    expect(parse).not.toHaveBeenCalled()
+  })
+
+  it('returns 429 without parsing when the model-call gate rejects', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const response = await handleParse(validRequest(), { parse }, rejectingGate)
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('3')
+    expect(await response.json()).toEqual({ error: 'rate_limited' })
+    expect(parse).not.toHaveBeenCalled()
+  })
+
   it('rejects an empty utterance', async () => {
     const response = await handleParse(
       parseRequest({ currentIntent: createEmptyTripIntent(), utterance: '' }),
       stubParser({ intent: parsedIntent, unhandled: null }),
+      allowingGate,
     )
 
     expect(response.status).toBe(400)
+  })
+
+  it('rejects an utterance over 500 Unicode code points before parsing', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const response = await handleParse(
+      parseRequest({
+        currentIntent: createEmptyTripIntent(),
+        utterance: '🚀'.repeat(501),
+      }),
+      { parse },
+      allowingGate,
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: 'invalid_request' })
+    expect(parse).not.toHaveBeenCalled()
+  })
+
+  it('trims and accepts an utterance of exactly 500 Unicode code points', async () => {
+    const parse = vi.fn(async () => ({ intent: parsedIntent, unhandled: null }))
+    const utterance = '🚀'.repeat(500)
+
+    const response = await handleParse(
+      parseRequest({
+        currentIntent: createEmptyTripIntent(),
+        utterance: `  ${utterance}  `,
+      }),
+      { parse },
+      allowingGate,
+    )
+
+    expect(response.status).toBe(200)
+    expect(parse).toHaveBeenCalledWith(createEmptyTripIntent(), utterance)
+  })
+
+  it('accepts a current-intent city of exactly 100 Unicode code points', async () => {
+    const parse = vi.fn(async () => ({ intent: parsedIntent, unhandled: null }))
+    const currentIntent = {
+      ...createEmptyTripIntent(),
+      destination: { iata: 'NRT', city: '🚀'.repeat(100) },
+    }
+
+    const response = await handleParse(
+      parseRequest({ currentIntent, utterance: 'keep it' }),
+      { parse },
+      allowingGate,
+    )
+
+    expect(response.status).toBe(200)
+    expect(parse).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a current-intent city over 100 Unicode code points', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const currentIntent = {
+      ...createEmptyTripIntent(),
+      destination: { iata: 'NRT', city: '🚀'.repeat(101) },
+    }
+
+    const response = await handleParse(
+      parseRequest({ currentIntent, utterance: 'keep it' }),
+      { parse },
+      allowingGate,
+    )
+
+    expect(response.status).toBe(400)
+    expect(parse).not.toHaveBeenCalled()
   })
 })
 
@@ -133,4 +250,12 @@ function parseRequest(body: unknown): Request {
 
 function stubParser(result: ParseResult): IntentParser {
   return { parse: async () => result }
+}
+
+const rejectingGate: ModelCallGate = {
+  acquire: () => ({ ok: false, retryAfterMs: 2_001 }),
+}
+
+const allowingGate: ModelCallGate = {
+  acquire: () => ({ ok: true, permit: { release() {} } }),
 }

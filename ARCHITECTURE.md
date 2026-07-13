@@ -54,6 +54,10 @@ src/
     prose/          LLM boundary #2. ResultExplainer turns ExplanationFacts into
                     { text, source } and never throws. A derived allowlist guards
                     digits and number words; failure uses a deterministic fallback.
+    server/         Framework-neutral Web API infrastructure. Owns bounded request-body
+                    reads, route-local transport contracts, trusted client identity,
+                    environment decoding, and per-process model-call admission. May
+                    depend on schema/engine contracts, never app or LLM implementations.
   app/              Next.js layer. Thin orchestration only. POST /api/parse runs
                     steps 1–3 plus gaps; GET /api/search streams raw source batches;
                     POST /api/explain turns client-computed facts into guarded copy.
@@ -65,6 +69,7 @@ Dependency direction (anything else is a violation):
 schema  <-  engine  <-  app
 schema  <-  parser  <-  app
 engine  <-  availability, prose  <-  app
+schema, engine  <-  server  <-  app
 ```
 
 Enforced as an **allowlist**, not a denylist: a Vitest guard asserts (a) files under
@@ -203,4 +208,7 @@ the feedback-retry path.
   representative fact fixtures assert the fallback is guard-clean by construction.
 - API routes: web-standard handler tests inject parser/prose stubs or an instant-delay
   provider, exercise the full SSE body, and require no Next runtime or network.
+- `server`: web-standard unit tests cover transport bounds, trusted request identity,
+  environment configuration, and deterministic per-process admission without Next or
+  network access. These limits are defense in depth, not a distributed quota.
 - Boundary guards: the allowlist import tests described in the module map.

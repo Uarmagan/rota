@@ -4,7 +4,10 @@ import {
 } from '../../../lib/availability/types'
 import { tripIntentSchema } from '../../../lib/schema/trip-intent'
 import { createProvider } from '../deps'
-import { errorMessage, invalidRequest } from '../http'
+import {
+  errorMessage,
+  invalidRequest,
+} from '../../../lib/server/request-body'
 import { sourceBatchStream } from '../sse'
 
 export const dynamic = 'force-dynamic'

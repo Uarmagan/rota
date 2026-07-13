@@ -7,9 +7,15 @@ import { OpenAIResultExplainer } from '../../lib/prose/openai-result-explainer'
 import type { ResultExplainer } from '../../lib/prose/result-explainer'
 import { SUPPORTED_PLACES } from '../../lib/schema/places'
 import type { Place } from '../../lib/schema/trip-intent'
+import { createModelCallGate } from '../../lib/server/request-gate'
+import { modelCallGateSettingsFromEnvironment } from '../../lib/server/request-gate-config'
 
 export const DEFAULT_ORIGIN: Place = { iata: 'ORD', city: 'Chicago' }
 export const NORMALIZE_CONFIG: NormalizeConfig = { defaultOrigin: DEFAULT_ORIGIN }
+const modelCallGateSettings = modelCallGateSettingsFromEnvironment(process.env)
+export const MODEL_CALL_GATE = createModelCallGate(modelCallGateSettings.config)
+export const TRUST_FORWARDED_ADDRESS =
+  modelCallGateSettings.trustForwardedAddress
 
 export function isoToday(): string {
   return new Date().toISOString().slice(0, 10)
