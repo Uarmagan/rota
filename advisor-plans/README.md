@@ -41,7 +41,7 @@ Full SHA-256 baseline hashes used by drift checks:
 | 002 | Enforce `unhandled` provenance | P1 | M | — | TODO |
 | 003 | Prevent stale parse overwrites | P1 | M | 001 | TODO |
 | 004 | Complete M5 chip/result interactions | P1 | L | 001, 003 | TODO |
-| 005 | Bound and meter LLM-backed routes | P1 | M | — | TODO |
+| 005 | Bound and meter LLM-backed routes | P1 | M | — | DONE |
 
 Status values: TODO, IN PROGRESS, DONE, BLOCKED (with reason), REJECTED (with rationale).
 

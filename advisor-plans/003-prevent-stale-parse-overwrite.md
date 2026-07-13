@@ -7,7 +7,7 @@
 >
 > ```sh
 > test -f src/app/ui/search-app.tsx
-> git diff --stat 32d5f8f..HEAD -- src/app/ui/search-app.tsx src/app/ui/search-app.test.tsx
+> git diff --stat 32d5f8f..HEAD -- src/app/ui/search-app.tsx src/app/ui/search-app.test.ts
 > shasum -a 256 src/app/ui/search-app.tsx
 > ```
 >
@@ -62,7 +62,7 @@ a response can win the race with cancellation.
 
 | Purpose | Command | Expected on success |
 |---|---|---|
-| Focused test | `pnpm exec vitest run src/app/ui/search-app.test.tsx` | all tests pass |
+| Focused test | `pnpm exec vitest run src/app/ui/search-app.test.ts` | all tests pass |
 | Full tests | `pnpm test` | all pass |
 | Typecheck | `pnpm typecheck` | exit 0 |
 | Build | `pnpm build` | exit 0 |
@@ -72,7 +72,7 @@ a response can win the race with cancellation.
 **In scope**:
 
 - `src/app/ui/search-app.tsx`
-- `src/app/ui/search-app.test.tsx`
+- `src/app/ui/search-app.test.ts`
 
 **Out of scope**:
 
