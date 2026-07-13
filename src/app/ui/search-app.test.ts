@@ -363,6 +363,7 @@ describe('SearchApp', () => {
   })
 
   it('requests one explanation and renders it only on the matching best option', async () => {
+    const user = userEvent.setup()
     const router = new FetchRouter()
     const stream = new ControlledSearchResponse()
     const explanation = deferred<Response>()
@@ -383,8 +384,38 @@ describe('SearchApp', () => {
 
     explanation.resolve(Response.json({ text: 'Fastest option for this search.' }))
 
+    await user.click(screen.getByRole('button', { name: /09:00.*10:00/i }))
     await screen.findByText('Fastest option for this search.')
     expect(screen.getAllByText('Fastest option for this search.')).toHaveLength(1)
+  })
+
+  it('completes the lazy-query, direct-edit, re-search, and result-details journey', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    const resultFrames = [batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(sseResponse(resultFrames), sseResponse(resultFrames))
+    router.explain.push(
+      Response.json({ text: 'Initial why line.' }),
+      Response.json({ text: 'Matching why line after the direct edit.' }),
+    )
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+    expect(await screen.findByText('ORD · Chicago')).toBeTruthy()
+    expect(screen.getByText('assumed')).toBeTruthy()
+    await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(1))
+
+    await user.click(screen.getByRole('button', { name: /travelers.*2/i }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Travelers' }), '3')
+    await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(2))
+    await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(2))
+    expect(router.requestsFor('/api/parse')).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: /09:00.*10:00/i }))
+    expect(
+      await screen.findByText('Matching why line after the direct edit.'),
+    ).toBeTruthy()
   })
 })
 
