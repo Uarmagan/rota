@@ -48,10 +48,18 @@ export function SearchApp() {
   const [why, setWhy] = useState<WhyLine | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [text, setText] = useState('')
+  const parseAbortRef = useRef<AbortController | null>(null)
+  const parseRun = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const searchRun = useRef(0)
 
-  useEffect(() => () => abortRef.current?.abort(), [])
+  useEffect(
+    () => () => {
+      parseAbortRef.current?.abort()
+      abortRef.current?.abort()
+    },
+    [],
+  )
 
   const applyIntent = (previous: TripIntent, next: TripIntent, nextGap: GapOutcome) => {
     const diff = computeIntentDiff(previous, next)
@@ -86,7 +94,12 @@ export function SearchApp() {
     setParsing(true)
     setError(null)
     const current = intent ?? createEmptyTripIntent()
-    const result = await requestParse(current, utterance)
+    parseAbortRef.current?.abort()
+    const controller = new AbortController()
+    parseAbortRef.current = controller
+    const run = ++parseRun.current
+    const result = await requestParse(current, utterance, controller.signal)
+    if (result === null || parseRun.current !== run || controller.signal.aborted) return
     setParsing(false)
     if (!result.ok) {
       setError(result.message)
@@ -98,6 +111,9 @@ export function SearchApp() {
 
   const pickOrigin = (place: Place) => {
     if (intent === null || gap === null) return
+    parseRun.current += 1
+    parseAbortRef.current?.abort()
+    setParsing(false)
     const next: TripIntent = { ...intent, origin: { ...place, assumed: false } }
     applyIntent(intent, next, gap)
   }
@@ -285,12 +301,14 @@ export function SearchApp() {
 async function requestParse(
   currentIntent: TripIntent,
   utterance: string,
-): Promise<ParseOutcome> {
+  signal: AbortSignal,
+): Promise<ParseOutcome | null> {
   try {
     const response = await fetch('/api/parse', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ currentIntent, utterance }),
+      signal,
     })
     if (response.ok) {
       const body = (await response.json()) as { intent: TripIntent; gap: GapOutcome }
@@ -304,6 +322,10 @@ async function requestParse(
           : 'Trouble reaching the parser — try again in a moment.',
     }
   } catch {
-    return { ok: false, message: 'Trouble reaching the parser — try again in a moment.' }
+    if (signal.aborted) return null
+    return {
+      ok: false,
+      message: 'Trouble reaching the parser — try again in a moment.',
+    }
   }
 }

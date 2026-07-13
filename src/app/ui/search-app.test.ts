@@ -80,6 +80,7 @@ describe('SearchApp', () => {
     expect(screen.getByText('NRT · Tokyo')).toBeTruthy()
     expect(screen.getByText('Feb 3, 2027')).toBeTruthy()
     expect(screen.getByText('economy')).toBeTruthy()
+    expect(screen.queryByText('parsing…')).toBeNull()
     await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(1))
     expect(searchIntentFrom(router.requestsFor('/api/search')[0].url)).toEqual(
       SEARCH_INTENT,
@@ -100,6 +101,93 @@ describe('SearchApp', () => {
     ).toBeTruthy()
     expect(input.value).toBe('tokio maybe')
     expect(router.requestsFor('/api/search')).toHaveLength(0)
+  })
+
+  it('keeps a direct origin edit when an older parse resolves', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    const staleParse = deferred<Response>()
+    router.parse.push(parseResponse(SEARCH_INTENT), staleParse.promise)
+    router.search.push(sseResponse([doneFrame()]), sseResponse([doneFrame()]))
+    router.install()
+
+    const input = await submitUtterance('tokyo in feb for 2')
+    await screen.findByText('ORD · Chicago')
+
+    await user.type(input, 'actually business class{Enter}')
+    await waitFor(() => expect(router.requestsFor('/api/parse')).toHaveLength(2))
+    const staleRequest = router.requestsFor('/api/parse')[1]
+
+    await user.click(screen.getByRole('button', { name: /from.*ORD · Chicago/i }))
+    await user.click(screen.getByRole('button', { name: /San Francisco SFO/i }))
+    expect(await screen.findByText('SFO · San Francisco')).toBeTruthy()
+    await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(2))
+
+    staleParse.resolve(
+      parseResponse({
+        ...SEARCH_INTENT,
+        cabin: 'business',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(screen.queryByText('parsing…')).toBeNull()
+    })
+    expect(screen.getByText('SFO · San Francisco')).toBeTruthy()
+    expect(screen.queryByText('ORD · Chicago')).toBeNull()
+    expect(router.requestsFor('/api/search')).toHaveLength(2)
+    expect(staleRequest.init?.signal?.aborted).toBe(true)
+  })
+
+  it('ignores an old parse rejection after a direct origin edit', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    const staleParse = deferred<Response>()
+    router.parse.push(parseResponse(SEARCH_INTENT), staleParse.promise)
+    router.search.push(sseResponse([doneFrame()]), sseResponse([doneFrame()]))
+    router.install()
+
+    const input = await submitUtterance('tokyo in feb for 2')
+    await screen.findByText('ORD · Chicago')
+
+    await user.type(input, 'actually business class{Enter}')
+    await waitFor(() => expect(router.requestsFor('/api/parse')).toHaveLength(2))
+    await user.click(screen.getByRole('button', { name: /from.*ORD · Chicago/i }))
+    await user.click(screen.getByRole('button', { name: /San Francisco SFO/i }))
+    expect(await screen.findByText('SFO · San Francisco')).toBeTruthy()
+
+    await act(async () => {
+      staleParse.reject(new Error('request aborted'))
+    })
+
+    expect(input.value).toBe('')
+    expect(
+      screen.queryByText('Trouble reaching the parser — try again in a moment.'),
+    ).toBeNull()
+    expect(screen.getByText('SFO · San Francisco')).toBeTruthy()
+    expect(screen.queryByText('parsing…')).toBeNull()
+  })
+
+  it('aborts an active parse on unmount', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    const pendingParse = deferred<Response>()
+    router.parse.push(pendingParse.promise)
+    router.install()
+    const { unmount } = render(createElement(SearchApp))
+    const input = screen.getByRole('textbox') as HTMLInputElement
+
+    await user.type(input, 'tokyo in feb for 2{Enter}')
+    await waitFor(() => expect(router.requestsFor('/api/parse')).toHaveLength(1))
+    const parseRequest = router.requestsFor('/api/parse')[0]
+
+    unmount()
+
+    expect(parseRequest.init?.signal?.aborted).toBe(true)
+    await act(async () => {
+      pendingParse.reject(new Error('request aborted'))
+      await Promise.resolve()
+    })
   })
 
   it('prompts for dates without starting a search', async () => {
@@ -285,10 +373,13 @@ function searchIntentFrom(url: string): unknown {
 function deferred<T>(): {
   promise: Promise<T>
   resolve: (value: T) => void
+  reject: (reason?: unknown) => void
 } {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((nextResolve) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((nextResolve, nextReject) => {
     resolve = nextResolve
+    reject = nextReject
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
