@@ -49,7 +49,10 @@ plans change those transitions.
 - `src/app/ui/format.test.ts` is the UI test style exemplar: Vitest `describe`/`it`,
   explicit assertions, colocated filenames.
 - `vitest.config.ts` uses the Node environment globally. Component tests therefore need
-  a file-level jsdom environment rather than changing the engine/API suites.
+  a file-level jsdom environment rather than changing the engine/API suites. Because
+  Vite cannot consume Next's string-form Tailwind PostCSS plugin declaration while
+  loading `search.css`, test config may set an empty test-only PostCSS plugin list; this
+  does not change production CSS processing.
 
 Current orchestration excerpt (`src/app/ui/search-app.tsx:82-96`):
 
@@ -79,7 +82,7 @@ network in `pnpm test`. Do not test Tailwind class strings or animation timing.
 | Purpose | Command | Expected on success |
 |---|---|---|
 | Add test dependencies | `pnpm add -D @testing-library/react @testing-library/user-event jsdom` | exit 0; only requested dev dependencies and lockfile change |
-| Focused tests | `pnpm exec vitest run src/app/ui/search-app.test.tsx src/app/ui/stream.test.ts` | all focused tests pass |
+| Focused tests | `pnpm exec vitest run src/app/ui/search-app.test.ts src/app/ui/stream.test.ts` | all focused tests pass |
 | Full tests | `pnpm test` | all tests pass with no network |
 | Typecheck | `pnpm typecheck` | exit 0, no errors |
 | Production gate | `pnpm build` | exit 0 |
@@ -90,7 +93,9 @@ network in `pnpm test`. Do not test Tailwind class strings or animation timing.
 
 - `package.json`
 - `pnpm-lock.yaml`
-- `src/app/ui/search-app.test.tsx` (new)
+- `vitest.config.ts`
+- `src/app/ui/search-app.test.ts` (new; render the component with
+  `createElement(SearchApp)` so the repo's `*.test.ts` convention is preserved)
 - `src/app/ui/stream.test.ts` (new)
 - `src/app/ui/test-support.ts` (new only if shared deferred-response/SSE helpers keep
   the two test files materially simpler)
@@ -114,8 +119,12 @@ network in `pnpm test`. Do not test Tailwind class strings or animation timing.
 ### Step 1: Add the smallest DOM test surface
 
 Add the three dev dependencies with pnpm. Put `// @vitest-environment jsdom` at the top
-of `search-app.test.tsx`; do not change the global Vitest environment. Configure
-`userEvent.setup()` per test and restore all globals/mocks after each test.
+of `search-app.test.ts`; do not change the global Vitest environment or the existing
+`src/**/*.test.ts` discovery rule. Render with `createElement(SearchApp)`, not JSX. In
+`vitest.config.ts`, add only a test-time `css.postcss` configuration with an empty plugin
+list so importing the production CSS does not ask Vite to interpret Next's PostCSS
+plugin syntax. Configure `userEvent.setup()` per test and call both
+`vi.restoreAllMocks()` and `vi.unstubAllGlobals()` after every test in both new suites.
 
 **Verify**: `pnpm exec vitest run src/app/ui/format.test.ts` -> existing UI tests pass.
 
@@ -153,7 +162,7 @@ cover only behavior that already works:
 Use accessible roles/text and controlled deferred promises. Do not assert CSS classes,
 exact internal state, or millisecond animation behavior.
 
-**Verify**: `pnpm exec vitest run src/app/ui/search-app.test.tsx` -> all new component
+**Verify**: `pnpm exec vitest run src/app/ui/search-app.test.ts` -> all new component
 tests pass.
 
 ### Step 4: Run repository gates
@@ -175,18 +184,20 @@ network-free.
 ## Done criteria
 
 - [ ] Both new test files exist and pass in one focused command.
+- [ ] The component suite follows the documented `.test.ts` convention, uses file-level
+  jsdom, and leaves the global Node environment/discovery rule unchanged.
 - [ ] The component tests exercise the real `SearchApp`, not a copied reducer or mock
   component.
 - [ ] Split SSE frames and progressive UI batches are covered.
 - [ ] `pnpm test`, `pnpm typecheck`, and `pnpm build` exit 0.
-- [ ] No production source file changed.
+- [ ] No production source file changed; only the scoped test configuration changed.
 - [ ] No live model request or `pnpm eval` ran.
 - [ ] The index status row is updated.
 
 ## STOP conditions
 
 - The dirty M5 baseline is absent or does not match the recorded hash.
-- A DOM test requires changing the global Vitest environment.
+- A DOM test requires changing the global Vitest environment beyond file-level jsdom.
 - Testing the existing behavior appears to require production refactoring.
 - The dependency command upgrades/removes unrelated core packages.
 - A verification command fails twice after a reasonable test-only correction.

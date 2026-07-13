@@ -57,14 +57,16 @@ const requestSchema = z.object({ facts: explanationFactsSchema })
 ```
 
 Do not modify the shared domain schemas merely to enforce transport limits: those
-schemas also validate trusted engine values. Define route-input schemas with bounded
-variants or `.superRefine()` at the API boundary.
+schemas also validate trusted engine values. Define transport-input schemas with
+bounded variants or `.superRefine()` in a server-library module. Route modules must
+remain thin orchestration; policy, stateful admission, identity derivation, and
+environment decoding do not belong under `src/app/`.
 
 ## Commands you will need
 
 | Purpose | Command | Expected on success |
 |---|---|---|
-| Focused tests | `pnpm exec vitest run src/app/api/http.test.ts src/app/api/request-gate.test.ts src/app/api/parse/route.test.ts src/app/api/explain/route.test.ts` | all pass |
+| Focused tests | `pnpm exec vitest run src/lib/server/request-body.test.ts src/lib/server/request-gate.test.ts src/lib/server/request-client.test.ts src/lib/server/request-gate-config.test.ts src/lib/server/llm-route-contracts.test.ts src/app/api/parse/route.test.ts src/app/api/explain/route.test.ts` | all pass |
 | Full tests | `pnpm test` | all pass |
 | Typecheck | `pnpm typecheck` | exit 0 |
 | Build | `pnpm build` | exit 0 |
@@ -73,11 +75,15 @@ variants or `.superRefine()` at the API boundary.
 
 **In scope**:
 
-- `src/app/api/http.ts` and `http.test.ts` (new test)
-- `src/app/api/request-gate.ts` and `request-gate.test.ts` (new)
+- `src/lib/server/request-body.ts` and `request-body.test.ts` (new)
+- `src/lib/server/request-gate.ts` and `request-gate.test.ts` (new)
+- `src/lib/server/request-client.ts` and `request-client.test.ts` (new)
+- `src/lib/server/request-gate-config.ts` and `request-gate-config.test.ts` (new)
+- `src/lib/server/llm-route-contracts.ts` and `llm-route-contracts.test.ts` (new)
 - `src/app/api/parse/route.ts` and `route.test.ts`
 - `src/app/api/explain/route.ts` and `route.test.ts`
 - `src/app/api/deps.ts`
+- `ARCHITECTURE.md` to record the server-library boundary
 - `.env.example` for names/default descriptions only; never add values or secrets
 
 **Out of scope**:
@@ -113,7 +119,7 @@ JSON, and chunked input without `Content-Length`.
 
 ### Step 2: Bound every prompt-bearing route field
 
-Define route-local bounded schemas:
+Define bounded transport schemas in `src/lib/server/llm-route-contracts.ts`:
 
 - Parse utterance: trim; 1-500 Unicode code points.
 - Every current-intent city label: 1-100.
@@ -124,15 +130,17 @@ Define route-local bounded schemas:
 Preserve the public success response shapes. Invalid bounded fields return the existing
 400 `invalid_request`. Add tests asserting the parser/explainer spy is never called.
 
-Do not tighten shared schemas; transport concerns stay in the routes.
+Do not tighten shared schemas; transport concerns stay in the server library and the
+routes only invoke the bounded parsers.
 
 **Verify**: parse/explain focused tests cover exact maximum and one over for strings,
 plus an excessive numeric fact.
 
 ### Step 3: Add an injected model-call gate
 
-Create a small interface used by both handlers, with an operation key (`parse` or
-`explain`) and explicit acquire/release lifecycle. The default implementation must:
+Create a small interface used by both handlers with an explicit acquire/release
+lifecycle. Do not add an operation parameter unless it changes admission behavior. The
+default implementation must:
 
 - cap active model calls per process,
 - cap calls per fixed time window globally and per client key,
@@ -149,10 +157,13 @@ Add non-secret environment names with safe defaults to `.env.example`, such as m
 concurrency and calls per minute. Parse invalid configuration at startup/factory time and
 fail closed with a clear server-side error; do not echo configuration details publicly.
 
-Inject the gate into `handleParse`/`handleExplain` just like parser/explainer dependencies
-so tests remain deterministic. Route `POST` functions use the default singleton from
-`deps.ts`. Rejections return 429, stable `rate_limited`, and `Retry-After`; paid
-dependencies must not be called.
+Keep limiter state, client identity derivation, and environment decoding in the focused
+`request-gate.ts`, `request-client.ts`, and `request-gate-config.ts` modules respectively;
+no stateful limiter or deployment policy may live under `src/app`. Inject the gate into
+`handleParse`/`handleExplain` just like
+parser/explainer dependencies so tests remain deterministic. Route `POST` functions use
+the default singleton from `deps.ts`. Rejections return 429, stable `rate_limited`, and
+`Retry-After`; paid dependencies must not be called.
 
 **Verify**: gate tests cover per-client limit, global limit, concurrency, pruning,
 clock-window reset, and release after throw. Handler tests prove 429 and no dependency
@@ -175,7 +186,7 @@ does not prove global spend containment.
 
 ## Test plan
 
-- `http.test.ts`: bounded streaming reader at/over the byte limit, chunked input,
+- `request-body.test.ts`: bounded streaming reader at/over the byte limit, chunked input,
   missing body, malformed JSON, and reader cancellation.
 - `request-gate.test.ts`: deterministic fake-clock coverage for client/global windows,
   concurrency, bounded-key pruning, reset, retry-after, and `finally` release.
