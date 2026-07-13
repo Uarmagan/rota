@@ -167,13 +167,32 @@ The deterministic core over flight data. Pure TS, no mocks.
 
 ## M5 — UI (needs M4; PRD says it earns nothing until the loops work)
 
-- [ ] Single input, chips row rendered from TripIntent, diff-driven change animation
-- [ ] Assumed-origin chip label + one-tap edit (chip taps skip the parser)
-- [ ] Targeted follow-up rendering (gap policy)
-- [ ] Streaming results grouped by source: skeletons, arrival animation, live
+- [x] Single input, chips row rendered from TripIntent, diff-driven change animation
+- [x] Assumed-origin chip label + one-tap edit (chip taps skip the parser)
+- [x] Targeted follow-up rendering (gap policy)
+- [x] Streaming results grouped by source: skeletons, arrival animation, live
       best-match re-badging
-- [ ] "Why this result" line from prose module
-- **Done when:** the PRD's 60-second demo path works end to end by hand.
+- [x] "Why this result" line from prose module
+- **Done when:** the PRD's 60-second demo path works end to end by hand
+  (implementation landed 2026-07-11; the by-hand walkthrough is still owed —
+  tracked in issue #5).
+
+### Decided during M5 prep
+
+- Design picked by prototype (issue #5): three variants on `/`, winner "Palette" —
+  dark command-bar where the utterance becomes chips in the same panel and the
+  input clears; a failed parse (422) restores the typed text with a rephrase
+  prompt. Primary source: branch `prototype/search-ui-variants`.
+- The client is the engine's second runtime, per ARCHITECTURE: raw batches stream
+  in, filter/rank/best-match/facts run in the browser, `/api/explain` phrases the
+  facts. Chip diffs are computed client-side from the previous chip state.
+- Missing dates block search in the UI with a prompting "When?" chip (deterministic
+  copy, not a gap question) — `checkGaps` only hard-blocks on destination, and
+  whether dates deserve promotion to a real follow-up is an open M6 question.
+- Filtered-out inventory is visible ("n options hidden by your filters"), keeping
+  principle 1 honest at the results layer.
+- No component library yet; shadcn (popover/command) reconsidered when chip editing
+  grows beyond the origin picker.
 
 ## M6 — Demo hardening
 
