@@ -11,18 +11,17 @@ import './search.css'
 import { SIMULATED_SOURCES } from '../../lib/availability/sources'
 import type { SourceBatch } from '../../lib/availability/types'
 import { computeIntentDiff } from '../../lib/engine/diff'
+import { applyIntentEdit, type IntentEdit } from '../../lib/engine/edit'
 import { explainOption } from '../../lib/engine/explain'
 import { filterOptions } from '../../lib/engine/filter'
-import type { GapOutcome } from '../../lib/engine/gaps'
+import { checkGaps, type GapOutcome } from '../../lib/engine/gaps'
 import { bestMatch, rankOptions } from '../../lib/engine/rank'
 import type { IntentField } from '../../lib/schema/intent-diff'
 import {
   createEmptyTripIntent,
-  type Place,
   type TripIntent,
 } from '../../lib/schema/trip-intent'
 import { ChipsRow, PromptChip, type ChipAnimation } from './chips'
-import { chipsFromIntent } from './format'
 import { Results, type SourceView } from './results'
 import { searchStream } from './stream'
 
@@ -87,6 +86,12 @@ export function SearchApp() {
     void startSearch(next)
   }
 
+  const invalidatePendingParse = () => {
+    parseRun.current += 1
+    parseAbortRef.current?.abort()
+    setParsing(false)
+  }
+
   const submit = async () => {
     const utterance = text.trim()
     if (utterance === '' || parsing) return
@@ -109,13 +114,11 @@ export function SearchApp() {
     applyIntent(current, result.intent, result.gap)
   }
 
-  const pickOrigin = (place: Place) => {
-    if (intent === null || gap === null) return
-    parseRun.current += 1
-    parseAbortRef.current?.abort()
-    setParsing(false)
-    const next: TripIntent = { ...intent, origin: { ...place, assumed: false } }
-    applyIntent(intent, next, gap)
+  const applyDirectEdit = (edit: IntentEdit) => {
+    if (intent === null) return
+    invalidatePendingParse()
+    const next = applyIntentEdit(intent, edit)
+    applyIntent(intent, next, checkGaps(next, null))
   }
 
   const startSearch = async (searchIntent: TripIntent) => {
@@ -220,10 +223,10 @@ export function SearchApp() {
         <div className="rounded-xl border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
           {intent !== null && (
             <ChipsRow
-              chips={chipsFromIntent(intent)}
+              intent={intent}
               animations={animations}
               runId={runId}
-              onPickOrigin={pickOrigin}
+              onEdit={applyDirectEdit}
             />
           )}
 

@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { createElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SourceBatch } from '@/lib/availability/types'
+import type { GapOutcome } from '@/lib/engine/gaps'
 import type { FlightOption } from '@/lib/engine/types'
 import type { TripIntent } from '@/lib/schema/trip-intent'
 import { SearchApp } from './search-app'
@@ -137,6 +138,128 @@ describe('SearchApp', () => {
     expect(screen.queryByText('ORD · Chicago')).toBeNull()
     expect(router.requestsFor('/api/search')).toHaveLength(2)
     expect(staleRequest.init?.signal?.aborted).toBe(true)
+  })
+
+  it('applies every direct editor family without calling the parser again', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    const editableIntent: TripIntent = {
+      ...SEARCH_INTENT,
+      priority: 'cheapest',
+      constraints: {
+        nonstop: 'preferred',
+        arriveBy: '17:00',
+        departAfter: '09:00',
+        avoidRedeye: true,
+        avoidLateArrival: false,
+      },
+    }
+    router.parse.push(parseResponse(editableIntent))
+    for (let index = 0; index < 12; index += 1) {
+      router.search.push(sseResponse([doneFrame()]))
+    }
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+    await screen.findByText('ORD · Chicago')
+
+    await user.click(screen.getByRole('button', { name: /travelers.*2/i }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Travelers' }), '3')
+    await user.click(screen.getByRole('button', { name: /from.*ORD/i }))
+    await user.click(screen.getByRole('button', { name: /San Francisco SFO/i }))
+    await user.click(screen.getByRole('button', { name: /to.*NRT/i }))
+    await user.click(screen.getByRole('button', { name: /Lisbon LIS/i }))
+    await user.click(screen.getByRole('button', { name: /cabin.*economy/i }))
+    await user.click(screen.getByRole('button', { name: 'business' }))
+    await user.click(screen.getByRole('button', { name: /dates.*Feb 3/i }))
+    const date = screen.getByLabelText('Date')
+    await user.clear(date)
+    await user.type(date, '2027-02-08')
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    await user.click(screen.getByRole('button', { name: /priority.*cheapest/i }))
+    await user.click(screen.getByRole('button', { name: 'fastest' }))
+    await user.click(screen.getByRole('button', { name: /nonstop.*preferred/i }))
+    await user.click(screen.getByRole('button', { name: 'required' }))
+    await user.click(screen.getByRole('button', { name: /arrive by.*17:00/i }))
+    const arrive = screen.getByLabelText('Arrive by')
+    await user.clear(arrive)
+    await user.type(arrive, '19:30')
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    await user.click(screen.getByRole('button', { name: /depart after.*09:00/i }))
+    const depart = screen.getByLabelText('Depart after')
+    await user.clear(depart)
+    await user.type(depart, '10:15')
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    await user.click(screen.getByRole('button', { name: /red-eyes.*avoid/i }))
+    await user.click(screen.getByRole('button', { name: 'fine' }))
+    await user.click(screen.getByRole('button', { name: /late arrival.*fine/i }))
+    await user.click(screen.getByRole('button', { name: 'avoid' }))
+
+    await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(12))
+    expect(router.requestsFor('/api/parse')).toHaveLength(1)
+    expect(
+      searchIntentFrom(router.requestsFor('/api/search').at(-1)!.url),
+    ).toMatchObject({
+      travelers: 3,
+      origin: { iata: 'SFO', assumed: false },
+      destination: { iata: 'LIS' },
+      cabin: 'business',
+      dates: {
+        earliest: '2027-02-08',
+        latest: '2027-02-08',
+        flexibility: 'exact',
+      },
+      priority: 'fastest',
+      constraints: {
+        nonstop: 'required',
+        arriveBy: '19:30',
+        departAfter: '10:15',
+        avoidRedeye: false,
+        avoidLateArrival: true,
+      },
+    })
+  })
+
+  it('stops searching when dates or destination are cleared directly', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(sseResponse([doneFrame()]))
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+    await screen.findByText('Feb 3, 2027')
+    await user.click(screen.getByRole('button', { name: /dates.*Feb 3/i }))
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(await screen.findByText('When?')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: /to.*NRT/i }))
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(await screen.findByText('Where to?')).toBeTruthy()
+    expect(router.requestsFor('/api/search')).toHaveLength(1)
+    expect(router.requestsFor('/api/parse')).toHaveLength(1)
+  })
+
+  it('clears a transient ready-with-notice outcome on a direct edit', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    router.parse.push(
+      parseResponse(SEARCH_INTENT, {
+        kind: 'ready_with_notice',
+        unhandled: 'window seat',
+      }),
+    )
+    router.search.push(sseResponse([doneFrame()]), sseResponse([doneFrame()]))
+    router.install()
+
+    await submitUtterance('tokyo with a window seat')
+    expect(await screen.findByText(/window seat/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: /cabin.*economy/i }))
+    await user.click(screen.getByRole('button', { name: 'business' }))
+
+    await waitFor(() => expect(screen.queryByText(/window seat/)).toBeNull())
+    expect(router.requestsFor('/api/parse')).toHaveLength(1)
+    expect(router.requestsFor('/api/search')).toHaveLength(2)
   })
 
   it('ignores an old parse rejection after a direct origin edit', async () => {
@@ -341,8 +464,11 @@ async function submitUtterance(utterance: string): Promise<HTMLInputElement> {
   return input
 }
 
-function parseResponse(intent: TripIntent): Response {
-  return Response.json({ intent, gap: { kind: 'ready' } })
+function parseResponse(
+  intent: TripIntent,
+  gap: GapOutcome = { kind: 'ready' },
+): Response {
+  return Response.json({ intent, gap })
 }
 
 function batch(source: string, option: FlightOption): SourceBatch {
