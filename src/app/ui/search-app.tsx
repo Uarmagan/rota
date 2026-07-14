@@ -215,7 +215,7 @@ export function SearchApp() {
               Rota
             </p>
             <p className="mb-6 text-center text-xs text-neutral-600">
-              Say it like you&rsquo;d say it to a person.
+              Describe what you need in your own words.
             </p>
           </>
         )}
