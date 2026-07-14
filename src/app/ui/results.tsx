@@ -18,6 +18,17 @@ import {
   stopsLabel,
 } from './format'
 
+const EXPAND_MS = 200 // keep in sync with the .rota-expand duration in search.css
+const FLIP_MS = 280
+
+// jsdom has no matchMedia; treat that as reduced motion, like useFlip does.
+function motionOk(): boolean {
+  return (
+    typeof window.matchMedia === 'function' &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+}
+
 export function Results({
   options,
   travelers,
@@ -38,7 +49,42 @@ export function Results({
   hidden: number
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const registerRow = useFlip()
+  const collapseTimer = useRef<number | null>(null)
+
+  const clearPendingExpand = () => {
+    if (collapseTimer.current !== null) {
+      window.clearTimeout(collapseTimer.current)
+      collapseTimer.current = null
+    }
+  }
+  useEffect(() => clearPendingExpand, [])
+
+  // Switching rows: let the open section finish closing before the target opens.
+  const toggleExpanded = (id: string) => {
+    clearPendingExpand()
+    if (expandedId === id) {
+      setExpandedId(null)
+      return
+    }
+    if (expandedId === null) {
+      setExpandedId(id)
+      return
+    }
+    setExpandedId(null)
+    const animated =
+      typeof window.matchMedia === 'function' &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!animated) {
+      setExpandedId(id)
+      return
+    }
+    collapseTimer.current = window.setTimeout(() => {
+      collapseTimer.current = null
+      setExpandedId(id)
+    }, EXPAND_MS)
+  }
+
+  const registerRow = useFlip(options.map((option) => option.id).join('|'))
   const enterDelays = useRef(new Map<string, number>())
 
   const fresh = options.filter((option) => !enterDelays.current.has(option.id))
@@ -46,6 +92,20 @@ export function Results({
   fresh.forEach((option, index) =>
     enterDelays.current.set(option.id, Math.min(index * 40, 240)),
   )
+
+  // The crown lands with its row: on a mid-stream handoff, delay the badge
+  // pop by the FLIP glide so the winner is crowned on arrival.
+  const crown = useRef<{ id: string | null; delayMs: number }>({
+    id: null,
+    delayMs: 0,
+  })
+  if (options.length === 0) crown.current = { id: null, delayMs: 0 }
+  if (bestId !== crown.current.id) {
+    crown.current = {
+      id: bestId,
+      delayMs: crown.current.id !== null && motionOk() ? FLIP_MS : 0,
+    }
+  }
 
   useEffect(() => {
     if (expandedId !== null && !options.some((option) => option.id === expandedId)) {
@@ -80,10 +140,9 @@ export function Results({
           travelers={travelers}
           isBest={bestId === option.id}
           enterDelayMs={enterDelays.current.get(option.id) ?? 0}
+          badgeDelayMs={crown.current.delayMs}
           expanded={expandedId === option.id}
-          onToggle={() =>
-            setExpandedId((current) => (current === option.id ? null : option.id))
-          }
+          onToggle={() => toggleExpanded(option.id)}
           whyLine={
             why !== null && why.optionId === option.id && bestId === option.id
               ? why.text
@@ -113,21 +172,41 @@ export function Results({
   )
 }
 
+// WAAPI easing can't reference CSS vars; read --ease-in-out-strong once.
+let flipEasing: string | null = null
+function getFlipEasing(): string {
+  if (flipEasing === null) {
+    const token =
+      typeof window === 'undefined'
+        ? ''
+        : getComputedStyle(document.documentElement)
+            .getPropertyValue('--ease-in-out-strong')
+            .trim()
+    flipEasing = token !== '' ? token : 'cubic-bezier(0.77, 0, 0.175, 1)'
+  }
+  return flipEasing
+}
+
 // FLIP over layout positions (offsetTop ignores in-flight transforms, so an
 // interrupted move re-measures from its true layout slot).
-function useFlip() {
+function useFlip(orderKey: string) {
   const nodes = useRef(new Map<string, HTMLDivElement>())
   const tops = useRef(new Map<string, number>())
   const moves = useRef(new Map<string, Animation>())
+  const lastOrder = useRef<string | null>(null)
 
   useLayoutEffect(() => {
     // matchMedia/animate are absent under jsdom; FLIP is a browser-only flourish.
     const reduceMotion =
       typeof window.matchMedia !== 'function' ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    // Only re-ranks FLIP; expand/collapse displacement belongs to .rota-expand.
+    const orderChanged =
+      lastOrder.current !== null && lastOrder.current !== orderKey
+    lastOrder.current = orderKey
     const nextTops = new Map<string, number>()
     for (const [id, el] of nodes.current) nextTops.set(id, el.offsetTop)
-    if (!reduceMotion) {
+    if (!reduceMotion && orderChanged) {
       for (const [id, el] of nodes.current) {
         const before = tops.current.get(id)
         if (before === undefined) continue
@@ -138,7 +217,7 @@ function useFlip() {
           id,
           el.animate(
             [{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }],
-            { duration: 280, easing: 'cubic-bezier(0.77, 0, 0.175, 1)' },
+            { duration: FLIP_MS, easing: getFlipEasing() },
           ),
         )
       }
@@ -161,6 +240,7 @@ function Row({
   travelers,
   isBest,
   enterDelayMs,
+  badgeDelayMs,
   expanded,
   onToggle,
   whyLine,
@@ -170,6 +250,7 @@ function Row({
   travelers: number
   isBest: boolean
   enterDelayMs: number
+  badgeDelayMs: number
   expanded: boolean
   onToggle: () => void
   whyLine: string | null
@@ -221,6 +302,7 @@ function Row({
           {isBest && (
             <span
               key={option.id}
+              style={{ animationDelay: `${badgeDelayMs}ms` }}
               className="rota-badge inline-block rounded bg-indigo-400/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300"
             >
               ★ BEST
@@ -271,7 +353,7 @@ function Row({
                 ` · ${formatUsd(computePartyPrice(option.pricing, 1).totalUsd)} per traveler · ${formatUsd(price.totalUsd)} total for ${travelers}`}
             </p>
             {expanded && whyLine !== null && (
-              <p className="mt-2 max-w-lg leading-relaxed text-neutral-400">
+              <p className="rota-fade-in mt-2 max-w-lg leading-relaxed text-neutral-400">
                 {whyLine}
               </p>
             )}
