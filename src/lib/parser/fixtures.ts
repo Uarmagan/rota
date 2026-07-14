@@ -69,6 +69,20 @@ const CONTEXT: ParserFixtureContext = {
   supportedPlaces: SUPPORTED_PLACES,
 }
 
+const LEGACY_CONTEXT: ParserFixtureContext = {
+  today: '2026-07-09',
+  placesVersion: '2026-07-10.1',
+  supportedPlaces: [
+    { iata: 'ORD', city: 'Chicago' },
+    { iata: 'SFO', city: 'San Francisco' },
+    { iata: 'JFK', city: 'New York' },
+    { iata: 'NRT', city: 'Tokyo' },
+    { iata: 'LIS', city: 'Lisbon' },
+    { iata: 'LHR', city: 'London' },
+    { iata: 'CDG', city: 'Paris' },
+  ],
+}
+
 const TOKYO = { iata: 'NRT', city: 'Tokyo' }
 const LISBON = { iata: 'LIS', city: 'Lisbon' }
 const LONDON = { iata: 'LHR', city: 'London' }
@@ -130,6 +144,53 @@ export const parserFixtures: readonly ParserFixture[] = [
     },
     expectedUnhandled: null,
     expectedChangedFields: ['destination', 'dates'],
+  },
+  {
+    name: 'specific-airport-over-metro',
+    kind: 'initial',
+    description:
+      'A named secondary airport resolves specifically while a bare metro name ' +
+      'uses the first listed airport for that city.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'from newark to london in march',
+    expected: {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'EWR', city: 'Newark', assumed: false },
+      destination: LONDON,
+      dates: MARCH_2027,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['origin', 'destination', 'dates'],
+  },
+  {
+    name: 'metro-secondary-airport',
+    kind: 'refinement',
+    description:
+      'A named airport refinement replaces only the origin while preserving ' +
+      'the complete normalized trip intent.',
+    context: CONTEXT,
+    currentIntent: {
+      travelers: 1,
+      origin: { iata: 'JFK', city: 'New York', assumed: false },
+      destination: LONDON,
+      cabin: 'economy',
+      dates: MARCH_2027,
+      priority: null,
+      constraints: NO_CONSTRAINTS,
+    },
+    utterance: 'actually fly out of laguardia',
+    expected: {
+      travelers: 1,
+      origin: { iata: 'LGA', city: 'New York', assumed: false },
+      destination: LONDON,
+      cabin: 'economy',
+      dates: MARCH_2027,
+      priority: null,
+      constraints: NO_CONSTRAINTS,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['origin'],
   },
   {
     name: 'rich-query-origin-left-null',
@@ -540,8 +601,9 @@ export const parserFixtures: readonly ParserFixture[] = [
     description:
       'A stated city we do not serve is recognized-but-unsupported and becomes ' +
       'unhandled, never a hallucinated IATA or parse failure. Destination stays ' +
-      'null so the missing-destination follow-up absorbs the echo (D2/D5/D7).',
-    context: CONTEXT,
+      'null so the missing-destination follow-up absorbs the echo (D2/D5/D7). ' +
+      'This fixture keeps its original seven-place context, where Berlin is absent.',
+    context: LEGACY_CONTEXT,
     currentIntent: createEmptyTripIntent(),
     utterance: 'to berlin in august',
     expected: {

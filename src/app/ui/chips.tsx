@@ -16,7 +16,7 @@ export type ChipAnimation = 'set' | 'changed'
 const CHIP_BASE =
   'inline-flex items-baseline gap-1.5 rounded-md border px-2 py-1 text-xs'
 const PANEL =
-  'absolute top-full left-0 z-20 mt-1.5 min-w-52 rounded-lg border border-white/10 bg-[#17171f] p-2 shadow-[0_12px_40px_rgba(0,0,0,0.6)]'
+  'rota-panel absolute top-full left-0 z-20 mt-1.5 min-w-52 rounded-lg border border-white/10 bg-[#17171f] p-2 shadow-[0_12px_40px_rgba(0,0,0,0.6)]'
 const OPTION =
   'flex w-full items-baseline justify-between rounded px-2 py-1.5 text-left text-xs text-neutral-100 hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none'
 
@@ -70,7 +70,7 @@ export function ChipsRow({
               aria-expanded={open}
               aria-controls={panelId}
               onClick={() => setOpenField(open ? null : chip.field)}
-              className={`${chipClasses(chip, animations.get(chip.field))} cursor-pointer transition-colors hover:border-white/25`}
+              className={`${chipClasses(chip, animations.get(chip.field))} rota-press cursor-pointer transition-colors hover:border-white/25`}
             >
               <ChipBody chip={chip} />
               <span className="text-[9px] text-neutral-500">▾</span>

@@ -1,17 +1,19 @@
 import type { FlightOption, FlightSegment } from '../engine/types'
 import type { Cabin } from '../schema/trip-intent'
+import { airlinesForRoute, type Airline } from './airlines'
+import { airportInfo } from './airports'
 import { drawInt, hashSeed, mulberry32, pickOne, pickWeighted } from './prng'
 import type { Random } from './prng'
-import { connectionCandidates, nonstopMinutes } from './routes'
+import { blockMinutes, connectionCandidates, distanceKm } from './routes'
 import { addMinutes, arrivalLocal } from './time'
 import type { AvailabilityQuery, SourcePersonality } from './types'
 
 const DAY_MS = 86_400_000
-const CABIN_MILES_MULTIPLIER: Readonly<Record<Cabin, number>> = {
+const CABIN_PRICE_MULTIPLIER: Readonly<Record<Cabin, number>> = {
   economy: 1,
-  premium_economy: 1.4,
-  business: 2.5,
-  first: 4,
+  premium_economy: 1.6,
+  business: 3.2,
+  first: 5,
 }
 const SEAT_BANDS: Readonly<Record<Cabin, readonly [number, number]>> = {
   economy: [4, 9],
@@ -34,7 +36,11 @@ export function generateSourceOptions(
   query: AvailabilityQuery,
   baseSeed: number,
 ): readonly FlightOption[] {
-  return generateSourceOptionsFromRandom(personality, query, sourceRandom(personality, query, baseSeed))
+  return generateSourceOptionsFromRandom(
+    personality,
+    query,
+    sourceRandom(personality, query, baseSeed),
+  )
 }
 
 export function generateSourceOptionsFromRandom(
@@ -42,10 +48,8 @@ export function generateSourceOptionsFromRandom(
   query: AvailabilityQuery,
   rng: Random,
 ): readonly FlightOption[] {
-  const directMinutes = nonstopMinutes(query.origin, query.destination)
+  if (query.origin === query.destination) return []
   const connections = connectionCandidates(query.origin, query.destination)
-  if (directMinutes === null && connections.length === 0) return []
-
   const departureDays = sampleDepartureDays(query, rng)
   const targetCount = drawInt(rng, ...personality.inventory)
   const options: FlightOption[] = []
@@ -60,38 +64,33 @@ export function generateSourceOptionsFromRandom(
         weight,
       })),
     )
-    const segmentsAndDuration = buildItinerary(
+    const itinerary = buildItinerary(
       query.origin,
       query.destination,
       departLocal,
-      directMinutes,
       connections,
       personality.connectionBias,
       rng,
     )
     const seatsAvailable = drawInt(rng, ...SEAT_BANDS[cabin])
-    const pricingJitter = 1 + (rng() * 2 - 1) * personality.milesJitter
-    const baseMiles = Math.max(
-      7500,
-      Math.round(
-        ((4000 + segmentsAndDuration.totalDurationMinutes * 55) *
-          CABIN_MILES_MULTIPLIER[cabin] *
-          personality.milesMultiplier *
-          pricingJitter) /
-          500,
-      ) * 500,
+    const jitter = 1 + (rng() * 2 - 1) * personality.priceJitter
+    const connectionDiscount = itinerary.segments.length > 1
+      ? 0.75 + rng() * 0.15
+      : 1
+    const priceUsd = Math.round(
+      (80 + distanceKm(query.origin, query.destination) * 0.085) *
+        CABIN_PRICE_MULTIPLIER[cabin] *
+        personality.priceMultiplier *
+        jitter *
+        connectionDiscount,
     )
     const option: FlightOption = {
       id: `${personality.id}-${String(sequence).padStart(3, '0')}`,
       source: personality.id,
       cabin,
-      segments: segmentsAndDuration.segments,
-      totalDurationMinutes: segmentsAndDuration.totalDurationMinutes,
-      pricing: {
-        baseMiles,
-        feesUsd: drawInt(rng, ...personality.feesUsd),
-        program: personality.program,
-      },
+      segments: itinerary.segments,
+      totalDurationMinutes: itinerary.totalDurationMinutes,
+      pricing: { priceUsd },
     }
 
     if (seatsAvailable >= query.travelers) options.push(option)
@@ -133,34 +132,53 @@ function buildItinerary(
   origin: string,
   destination: string,
   departLocal: string,
-  directMinutes: number | null,
   connections: readonly string[],
   connectionBias: number,
   rng: Random,
 ): { segments: readonly FlightSegment[]; totalDurationMinutes: number } {
-  const useConnection =
-    directMinutes === null || (connections.length > 0 && rng() < connectionBias)
+  const useConnection = connections.length > 0 && rng() < connectionBias
 
-  if (!useConnection && directMinutes !== null) {
-    const duration = jitterDuration(directMinutes, rng)
+  if (!useConnection) {
+    const duration = blockMinutes(origin, destination)
+    const airline = pickOne(
+      rng,
+      airlinesForRoute(airportInfo(origin), airportInfo(destination)),
+    )
     return {
-      segments: [createSegment(origin, destination, departLocal, duration)],
+      segments: [
+        createSegment(origin, destination, departLocal, duration, airline, rng),
+      ],
       totalDurationMinutes: duration,
     }
   }
 
   const hub = pickOne(rng, connections)
-  const firstBase = nonstopMinutes(origin, hub)
-  const secondBase = nonstopMinutes(hub, destination)
-  if (firstBase === null || secondBase === null) {
-    throw new Error(`Invalid connection ${origin}-${hub}-${destination}`)
-  }
-  const firstDuration = jitterDuration(firstBase, rng)
-  const first = createSegment(origin, hub, departLocal, firstDuration)
+  const [firstAirline, secondAirline] = connectionAirlines(
+    origin,
+    hub,
+    destination,
+    rng,
+  )
+  const firstDuration = blockMinutes(origin, hub)
+  const first = createSegment(
+    origin,
+    hub,
+    departLocal,
+    firstDuration,
+    firstAirline,
+    rng,
+  )
   const layover = roundToFive(60 + rng() * 120)
   const secondDeparture = addMinutes(first.arriveLocal, layover)
-  const secondDuration = jitterDuration(secondBase, rng)
-  const second = createSegment(hub, destination, secondDeparture, secondDuration)
+  const secondDuration = blockMinutes(hub, destination)
+  const second = createSegment(
+    hub,
+    destination,
+    secondDeparture,
+    secondDuration,
+    secondAirline,
+    rng,
+  )
 
   return {
     segments: [first, second],
@@ -168,22 +186,40 @@ function buildItinerary(
   }
 }
 
+function connectionAirlines(
+  origin: string,
+  hub: string,
+  destination: string,
+  rng: Random,
+): readonly [Airline, Airline] {
+  const first = airlinesForRoute(airportInfo(origin), airportInfo(hub))
+  const second = airlinesForRoute(airportInfo(hub), airportInfo(destination))
+  const shared = first.filter((airline) =>
+    second.some(({ code }) => code === airline.code),
+  )
+
+  if (rng() < 0.8) {
+    const airline = pickOne(rng, shared)
+    return [airline, airline]
+  }
+  return [pickOne(rng, first), pickOne(rng, second)]
+}
+
 function createSegment(
   from: string,
   to: string,
   departLocal: string,
   durationMinutes: number,
+  airline: Airline,
+  rng: Random,
 ): FlightSegment {
   return {
     from,
     to,
     departLocal,
     arriveLocal: arrivalLocal(departLocal, durationMinutes, from, to),
+    flight: `${airline.code} ${drawInt(rng, 1, 1999)}`,
   }
-}
-
-function jitterDuration(baseMinutes: number, rng: Random): number {
-  return roundToFive(baseMinutes * (0.95 + rng() * 0.15))
 }
 
 function roundToFive(value: number): number {

@@ -37,7 +37,7 @@ src/
                       filter.ts     apply TripIntent constraints to flight options
                       rank.ts       scoring + best-match selection, stable under
                                     incremental arrival of results
-                      pricing.ts    simulated award pricing math (miles + fees)
+                      pricing.ts    per-traveler cash fare to party total
                       explain.ts    ExplanationFacts: computed comparisons within
                                     the result set ("fastest under arrive-by",
                                     "lands 6h earlier than cheapest")
@@ -47,10 +47,10 @@ src/
                     fixture set. Returns ParseResult through Output.object and a
                     Zod gate, then membership-checks the schema registry so every
                     model-mistake retry stays here. Depends on schema, never engine.
-    availability/   AvailabilityProvider interface + simulated sources with
-                    realistic per-source latency profiles and scarce premium
-                    inventory. Fake data, real async streaming. Seedable for
-                    deterministic tests.
+    availability/   AvailabilityProvider interface + simulated sources, a
+                    registry-synchronized airport table, haversine-derived block
+                    times, and deterministic real-airline display identities.
+                    Fake inventory, real async streaming. Seedable for tests.
     prose/          LLM boundary #2. ResultExplainer turns ExplanationFacts into
                     { text, source } and never throws. A derived allowlist guards
                     digits and number words; failure uses a deterministic fallback.
@@ -166,8 +166,8 @@ retries. Invalid JSON, Zod failures, and registry-membership failures get at mos
 feedback retry; the SDK separately gets one transport retry. Exhaustion throws typed
 `ParserError` with reason `invalid_output` or `transport`. Hostile identity output is
 valid and never retried. Refusal and token-cutoff are parse failures, not malformed JSON
-to retry blindly. The parser duplicates the seven-entry membership lookup rather than
-importing engine normalization; ADR 0006 records why.
+to retry blindly. The parser duplicates the versioned registry membership lookup
+rather than importing engine normalization; ADR 0006 records why.
 
 The OpenAI `ResultExplainer` receives only pre-rendered numeric strings derived from
 `ExplanationFacts`; the model quotes those values rather than formatting or converting

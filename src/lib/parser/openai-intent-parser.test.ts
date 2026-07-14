@@ -78,7 +78,7 @@ describe('OpenAIIntentParser', () => {
       ...validResult,
       intent: {
         ...validResult.intent,
-        destination: { iata: 'BER', city: 'Berlin' },
+        destination: { iata: 'XXX', city: 'Unknown' },
       },
     }
     const model = mockModel([modelResult(unknownPlace), modelResult(validResult)])
@@ -97,7 +97,7 @@ describe('OpenAIIntentParser', () => {
       ...validResult,
       intent: {
         ...validResult.intent,
-        destination: { iata: 'BER', city: 'Berlin' },
+        destination: { iata: 'XXX', city: 'Unknown' },
       },
     }
     const model = mockModel([modelResult(unknownPlace), modelResult(unknownPlace)])

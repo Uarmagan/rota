@@ -1,41 +1,48 @@
-export const NONSTOP_BLOCK_MINUTES: Readonly<Record<string, number>> = {
-  'CDG-LHR': 80,
-  'CDG-LIS': 150,
-  'CDG-NRT': 760,
-  'CDG-ORD': 495,
-  'CDG-SFO': 640,
-  'JFK-CDG': 440,
-  'JFK-LHR': 415,
-  'JFK-LIS': 400,
-  'JFK-NRT': 840,
-  'JFK-ORD': 135,
-  'JFK-SFO': 330,
-  'LHR-LIS': 155,
-  'LHR-NRT': 780,
-  'LHR-ORD': 470,
-  'LHR-SFO': 620,
-  'NRT-ORD': 780,
-  'NRT-SFO': 660,
-  'ORD-SFO': 270,
+import { AIRPORTS, airportInfo } from './airports'
+
+const EARTH_RADIUS_KM = 6371
+
+export function distanceKm(from: string, to: string): number {
+  const a = airportInfo(from)
+  const b = airportInfo(to)
+  const latDelta = radians(b.lat - a.lat)
+  const lonDelta = radians(b.lon - a.lon)
+  const value =
+    Math.sin(latDelta / 2) ** 2 +
+    Math.cos(radians(a.lat)) *
+      Math.cos(radians(b.lat)) *
+      Math.sin(lonDelta / 2) ** 2
+  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value))
 }
 
-export const HUBS = ['ORD', 'JFK', 'LHR', 'CDG'] as const
-
-function routeKey(from: string, to: string): string {
-  return [from, to].sort().join('-')
+export function blockMinutes(from: string, to: string): number {
+  return Math.round(((distanceKm(from, to) / 830) * 60 + 45) / 5) * 5
 }
 
-export function nonstopMinutes(from: string, to: string): number | null {
-  return NONSTOP_BLOCK_MINUTES[routeKey(from, to)] ?? null
+export function connectionCandidates(
+  origin: string,
+  destination: string,
+): string[] {
+  if (origin === destination) return []
+  const directDistance = distanceKm(origin, destination)
+
+  return Object.values(AIRPORTS)
+    .filter(({ iata, hub }) => hub && iata !== origin && iata !== destination)
+    .map(({ iata }) => ({
+      iata,
+      distance:
+        distanceKm(origin, iata) + distanceKm(iata, destination),
+    }))
+    .filter(({ distance }) => distance <= directDistance * 1.35)
+    .sort((left, right) =>
+      left.distance === right.distance
+        ? left.iata.localeCompare(right.iata)
+        : left.distance - right.distance,
+    )
+    .slice(0, 4)
+    .map(({ iata }) => iata)
 }
 
-export function connectionCandidates(from: string, to: string): readonly string[] {
-  if (from === to) return []
-  return HUBS.filter(
-    (hub) =>
-      hub !== from &&
-      hub !== to &&
-      nonstopMinutes(from, hub) !== null &&
-      nonstopMinutes(hub, to) !== null,
-  )
+function radians(degrees: number): number {
+  return (degrees * Math.PI) / 180
 }

@@ -40,10 +40,11 @@ const FIRST_OPTION: FlightOption = {
       to: 'NRT',
       departLocal: '2027-02-03T08:00',
       arriveLocal: '2027-02-03T11:00',
+      flight: 'NH 101',
     },
   ],
   totalDurationMinutes: 900,
-  pricing: { baseMiles: 80_000, feesUsd: 60, program: 'Meridian Rewards' },
+  pricing: { priceUsd: 800 },
 }
 
 const BETTER_OPTION: FlightOption = {
@@ -56,10 +57,11 @@ const BETTER_OPTION: FlightOption = {
       to: 'NRT',
       departLocal: '2027-02-03T09:00',
       arriveLocal: '2027-02-03T10:00',
+      flight: 'NH 202',
     },
   ],
   totalDurationMinutes: 600,
-  pricing: { baseMiles: 40_000, feesUsd: 30, program: 'Aurora Premier' },
+  pricing: { priceUsd: 400 },
 }
 
 afterEach(() => {

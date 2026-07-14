@@ -1,5 +1,4 @@
 import type { TripIntent } from '../schema/trip-intent'
-import { milesEquivalent } from './pricing'
 import type { FlightOption } from './types'
 
 const BASE_PRICE_WEIGHT = 1
@@ -30,7 +29,7 @@ export function scoreOption(
       : 0
 
   return (
-    priceWeight * (milesEquivalent(option.pricing) / 10_000) +
+    priceWeight * (option.pricing.priceUsd / 100) +
     durationWeight * (option.totalDurationMinutes / 60) +
     STOPS_WEIGHT * stops +
     preferredPenalty

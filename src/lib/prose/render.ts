@@ -8,8 +8,8 @@ export function formatDuration(minutes: number): string {
     .join(' ')
 }
 
-export function formatMiles(miles: number): string {
-  return miles.toLocaleString('en-US')
+export function formatUsd(amount: number): string {
+  return `$${amount.toLocaleString('en-US')}`
 }
 
 export function renderStops(stops: number): string {
@@ -22,7 +22,7 @@ export function renderComparison(comparison: OptionComparison): string {
     renderDelta(comparison.stopsDelta, 'stop', 'more', 'fewer', 'same stops'),
     renderDurationDelta(comparison.durationDeltaMinutes, 'slower', 'faster'),
     renderArrivalDelta(comparison.arrivalDeltaMinutes),
-    renderMilesDelta(comparison.totalMilesDelta),
+    renderPriceDelta(comparison.totalUsdDelta),
   ].join('; ')
 }
 
@@ -35,7 +35,7 @@ export function renderFacts(facts: ExplanationFacts): string {
   const lines = [
     `stops: ${renderStops(facts.stops)}`,
     `duration: ${formatDuration(facts.totalDurationMinutes)}`,
-    `price: ${formatMiles(facts.price.totalMiles)} miles + $${facts.price.totalFeesUsd} (${facts.price.program})`,
+    `price: ${formatUsd(facts.price.totalUsd)} total`,
     `badges: ${badges.join(', ') || 'none'}`,
   ]
   if (facts.arriveBy !== null) lines.push(`arrive-by deadline: ${facts.arriveBy}`)
@@ -61,7 +61,7 @@ export function fallbackLine(facts: ExplanationFacts): string {
   const capitalizedStops = stops[0].toUpperCase() + stops.slice(1)
   return (
     `${lead} ${capitalizedStops}, ${formatDuration(facts.totalDurationMinutes)}, ` +
-    `${formatMiles(facts.price.totalMiles)} miles + $${facts.price.totalFeesUsd}.`
+    `${formatUsd(facts.price.totalUsd)} total.`
   )
 }
 
@@ -91,7 +91,7 @@ function renderArrivalDelta(delta: number): string {
   return `arrives ${formatDuration(Math.abs(delta))} ${delta > 0 ? 'later' : 'earlier'}`
 }
 
-function renderMilesDelta(delta: number): string {
-  if (delta === 0) return 'same miles'
-  return `${formatMiles(Math.abs(delta))} ${delta > 0 ? 'more' : 'fewer'} miles`
+function renderPriceDelta(delta: number): string {
+  if (delta === 0) return 'same price'
+  return `${formatUsd(Math.abs(delta))} ${delta > 0 ? 'more' : 'cheaper'}`
 }

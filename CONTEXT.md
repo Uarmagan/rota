@@ -189,9 +189,16 @@ The top-ranked result under the current intent; its badge visibly and legibly mo
 as batches land.
 _Avoid_: recommendation, top pick
 
-**Award pricing**:
-Miles-plus-fees display with fictional program names: award-travel flavor without
-asserting any real-world points facts.
+**Cash pricing**:
+Simulated whole-dollar cash fares per traveler. The engine computes party totals;
+neither the generator nor the prose model emits a display total.
+
+**Airline identity**:
+Real carrier names and flight prefixes assigned deterministically to simulated
+flights. A flight option carries the prefix and number; the airline table supplies
+the display name. This is labeled fiction: fares and inventory assert nothing about
+the real carrier, and the pending M6 UI relayout must carry a persistent
+simulated-data label.
 
 **Why-this-result**:
 The one-or-two-line explanation on a top result, phrased strictly from
@@ -204,7 +211,7 @@ which lets prose fail safe without retrying.
 _Avoid_: error message, placeholder
 
 **Rendered values**:
-The engine-formatted numeric strings ("13h 35m", "145,000 miles + $48") handed to the
+The engine-formatted numeric strings ("13h 35m", "$2,480 total") handed to the
 prose model to quote verbatim. The model phrases around numbers it was given; it never
 formats or converts one.
 

@@ -8,11 +8,7 @@ const facts: ExplanationFacts = {
   optionId: 'option-1',
   stops: 0,
   totalDurationMinutes: 815,
-  price: {
-    totalMiles: 145000,
-    totalFeesUsd: 96,
-    program: 'Meridian Elite',
-  },
+  price: { totalUsd: 1450 },
   isBestMatch: true,
   isCheapest: false,
   isFastest: false,
@@ -121,13 +117,13 @@ describe('handleExplain', () => {
     expect(release).toHaveBeenCalledOnce()
   })
 
-  it('rejects a program over 100 Unicode code points before explaining', async () => {
+  it('rejects a fractional party price before explaining', async () => {
     const explain = vi.fn<ResultExplainer['explain']>()
     const response = await handleExplain(
       explainRequest({
         facts: {
           ...facts,
-          price: { ...facts.price, program: '🚀'.repeat(101) },
+          price: { totalUsd: 1450.5 },
         },
       }),
       { explain },
@@ -138,14 +134,13 @@ describe('handleExplain', () => {
     expect(explain).not.toHaveBeenCalled()
   })
 
-  it('accepts option and program labels at exactly 100 Unicode code points', async () => {
+  it('accepts an option label at exactly 100 Unicode code points', async () => {
     const explain = vi.fn(async () => ({ text: 'Best match.', source: 'model' as const }))
     const response = await handleExplain(
       explainRequest({
         facts: {
           ...facts,
           optionId: '🚀'.repeat(100),
-          price: { ...facts.price, program: '🚀'.repeat(100) },
         },
       }),
       { explain },

@@ -20,12 +20,11 @@ export interface FlightSegment {
   to: string
   departLocal: string // 'YYYY-MM-DDTHH:MM' local at `from`
   arriveLocal: string // 'YYYY-MM-DDTHH:MM' local at `to`
+  flight: string // display identity; engine logic never reads it
 }
 
-export interface AwardPricingInputs {
-  baseMiles: number // one-traveler miles; cabin already reflected
-  feesUsd: number // one-traveler taxes/fees, whole USD
-  program: string // fictional program name
+export interface CashPricingInputs {
+  priceUsd: number // one traveler, whole USD; cabin already reflected
 }
 
 export interface FlightOption {
@@ -34,27 +33,25 @@ export interface FlightOption {
   cabin: Cabin
   segments: readonly FlightSegment[] // >= 1; stops = segments.length - 1
   totalDurationMinutes: number
-  pricing: AwardPricingInputs
+  pricing: CashPricingInputs
 }
 
-// Party display totals, computed by engine/pricing.ts from AwardPricingInputs.
+// Party display totals, computed by engine/pricing.ts from CashPricingInputs.
 // The ONLY numbers pricing ever surfaces — the UI formats, never computes.
-export interface AwardPriceDisplay {
-  totalMiles: number
-  totalFeesUsd: number
-  program: string
+export interface PriceDisplay {
+  totalUsd: number
 }
 
 // Deltas of one option against a reference option in the same result set.
 // Every delta is `this minus reference`: positive stopsDelta = more stops,
 // negative durationDeltaMinutes = faster, negative arrivalDeltaMinutes = lands
 // earlier (final-arrival wall-clock at the shared destination), negative
-// totalMilesDelta = fewer party miles.
+// totalUsdDelta = lower party price.
 export interface OptionComparison {
   stopsDelta: number
   durationDeltaMinutes: number
   arrivalDeltaMinutes: number
-  totalMilesDelta: number
+  totalUsdDelta: number
 }
 
 // The only raw material the prose boundary may phrase (number-provenance
@@ -66,9 +63,9 @@ export interface ExplanationFacts {
   optionId: string
   stops: number
   totalDurationMinutes: number
-  price: AwardPriceDisplay
+  price: PriceDisplay
   isBestMatch: boolean
-  isCheapest: boolean // by milesEquivalent, the engine's single price scalar
+  isCheapest: boolean // by per-traveler cash price
   isFastest: boolean
   arriveBy: string | null // the active arrive-by deadline, for phrasing context
   nonstopRequired: boolean

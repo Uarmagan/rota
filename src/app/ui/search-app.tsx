@@ -22,7 +22,7 @@ import {
   type TripIntent,
 } from '../../lib/schema/trip-intent'
 import { ChipsRow, PromptChip, type ChipAnimation } from './chips'
-import { Results, type SourceView } from './results'
+import { Results } from './results'
 import { searchStream } from './stream'
 
 type ParseOutcome =
@@ -178,32 +178,18 @@ export function SearchApp() {
     intent !== null && intent.destination !== null && intent.dates !== null
   const options = batches.flatMap((batch) => batch.options)
   const filtered = searchable && options.length > 0 ? filterOptions(intent, options) : []
-  const best = searchable ? bestMatch(rankOptions(intent, filtered)) : null
-  const filteredIds = new Set(filtered.map((option) => option.id))
+  const ranked = searchable ? rankOptions(intent, filtered) : []
+  const best = bestMatch(ranked)
   const showResults = searchable && (streaming || batches.length > 0)
-
-  const sourceViews: SourceView[] = SIMULATED_SOURCES.map(({ id, program }) => {
-    const sourceBatches = batches.filter((batch) => batch.source === id)
-    const sourceOptions = sourceBatches.flatMap((batch) => batch.options)
-    const visible = sourceOptions.filter((option) => filteredIds.has(option.id))
-    const status: SourceView['status'] = sourceBatches.some((batch) => batch.isFinal)
-      ? 'done'
-      : sourceBatches.length > 0
-        ? 'partial'
-        : streaming
-          ? 'searching'
-          : 'done'
-    return {
-      id,
-      program,
-      options: visible,
-      hidden: sourceOptions.length - visible.length,
-      status,
-    }
-  })
+  const sourcesDone = new Set(
+    batches.filter((batch) => batch.isFinal).map((batch) => batch.source),
+  ).size
 
   return (
     <div className="min-h-screen bg-[#0b0b0f] text-neutral-200 antialiased">
+      <span className="fixed top-4 right-4 z-40 rounded-full border border-white/10 bg-[#0b0b0f]/80 px-2.5 py-1 text-[10px] tracking-[0.15em] text-neutral-500 uppercase select-none">
+        simulated data
+      </span>
       <div
         className={`mx-auto flex w-full max-w-2xl flex-col px-6 ${
           hasIntent ? 'pt-14 pb-32' : 'min-h-screen justify-center pb-40'
@@ -290,10 +276,14 @@ export function SearchApp() {
 
         {showResults && (
           <Results
-            sources={sourceViews}
+            options={ranked.map(({ option }) => option)}
             travelers={intent.travelers ?? 1}
             bestId={best?.id ?? null}
             why={why}
+            streaming={streaming}
+            sourcesDone={sourcesDone}
+            sourcesTotal={SIMULATED_SOURCES.length}
+            hidden={options.length - filtered.length}
           />
         )}
       </div>

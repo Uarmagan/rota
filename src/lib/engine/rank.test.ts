@@ -6,11 +6,7 @@ function makeScoringPair() {
   const faster = makeOption({
     id: 'faster',
     totalDurationMinutes: 660,
-    pricing: {
-      baseMiles: 80_000,
-      feesUsd: 50,
-      program: 'Aurora Miles',
-    },
+    pricing: { priceUsd: 800 },
   })
   const cheaper = makeOption({
     id: 'cheaper',
@@ -20,20 +16,18 @@ function makeScoringPair() {
         to: 'LAX',
         departLocal: '2027-02-10T10:00',
         arriveLocal: '2027-02-10T11:30',
+        flight: 'UA 101',
       },
       {
         from: 'LAX',
         to: 'NRT',
         departLocal: '2027-02-10T13:00',
         arriveLocal: '2027-02-11T17:00',
+        flight: 'NH 202',
       },
     ],
     totalDurationMinutes: 960,
-    pricing: {
-      baseMiles: 55_000,
-      feesUsd: 25,
-      program: 'Aurora Miles',
-    },
+    pricing: { priceUsd: 550 },
   })
 
   return { faster, cheaper }
@@ -48,20 +42,20 @@ describe('rankOptions priority weighting', () => {
     const fastest = rankOptions(makeIntent({ priority: 'fastest' }), options)
 
     expect(base.map(({ option }) => option.id)).toEqual(['faster', 'cheaper'])
-    expect(base[0].score).toBeCloseTo(13.9)
-    expect(base[1].score).toBeCloseTo(14.7)
+    expect(base[0].score).toBeCloseTo(13.5)
+    expect(base[1].score).toBeCloseTo(14.5)
     expect(cheapest.map(({ option }) => option.id)).toEqual([
       'cheaper',
       'faster',
     ])
-    expect(cheapest[0].score).toBeCloseTo(26.1)
-    expect(cheapest[1].score).toBeCloseTo(30.7)
+    expect(cheapest[0].score).toBeCloseTo(25.5)
+    expect(cheapest[1].score).toBeCloseTo(29.5)
     expect(fastest.map(({ option }) => option.id)).toEqual([
       'faster',
       'cheaper',
     ])
-    expect(fastest[0].score).toBeCloseTo(24.9)
-    expect(fastest[1].score).toBeCloseTo(30.7)
+    expect(fastest[0].score).toBeCloseTo(24.5)
+    expect(fastest[1].score).toBeCloseTo(30.5)
     expect(base).toHaveLength(options.length)
     expect(cheapest).toHaveLength(options.length)
     expect(fastest).toHaveLength(options.length)
@@ -81,8 +75,8 @@ describe('nonstop preference', () => {
       },
     })
 
-    expect(scoreOption(intent, cheaper)).toBeCloseTo(16.7)
-    expect(scoreOption(intent, faster)).toBeCloseTo(13.9)
+    expect(scoreOption(intent, cheaper)).toBeCloseTo(16.5)
+    expect(scoreOption(intent, faster)).toBeCloseTo(13.5)
     expect(rankOptions(intent, [cheaper, faster])).toHaveLength(2)
   })
 })
@@ -111,20 +105,12 @@ describe('incremental batch stability', () => {
     const mid = makeOption({
       id: 'mid',
       totalDurationMinutes: 720,
-      pricing: {
-        baseMiles: 70_000,
-        feesUsd: 25,
-        program: 'Aurora Miles',
-      },
+      pricing: { priceUsd: 700 },
     })
     const slow = makeOption({
       id: 'slow',
       totalDurationMinutes: 1_200,
-      pricing: {
-        baseMiles: 90_000,
-        feesUsd: 50,
-        program: 'Aurora Miles',
-      },
+      pricing: { priceUsd: 900 },
     })
     const intent = makeIntent()
     const batchA = [cheaper, slow]

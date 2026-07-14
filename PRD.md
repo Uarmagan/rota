@@ -59,7 +59,7 @@ The test for this feature: a user should be able to go from lazy first query to 
 
 ### 4. Streaming results
 
-Results stream in grouped by (simulated) source as each responds. Skeleton states, arrival animation, and live re-ranking of the "best match" badge are part of the product. Results carry award-style pricing ("62,500 miles + $48") alongside duration, stops, and times, keeping the award-travel flavor without asserting any real-world points facts.
+Results stream in grouped by (simulated) source as each responds. Skeleton states, arrival animation, and live re-ranking of the "best match" badge are part of the product. Results carry whole-dollar simulated cash fares alongside duration, stops, times, and realistic airline identities, making comparison read like a familiar flight-search product without asserting live inventory or prices.
 
 ### 5. "Why this result"
 
@@ -75,7 +75,7 @@ A committed set of 20 to 25 test utterances with expected parsed outputs: happy 
 
 Also out:
 
-- Real award availability (simulated, with realistic shape: scarce premium cabins, variable pricing)
+- Real flight availability (simulated, with realistic shape: scarce premium cabins, variable pricing)
 - Round-trip and multi-city (one-way only, mirroring real MVP sequencing)
 - Accounts, auth, saved searches, alerts
 - Full eval harness with accuracy reporting (phase 2, built on the fixture set)
@@ -104,7 +104,7 @@ If a feature doesn't make these 60 seconds better, it waits.
 
 ## Open questions
 
-- How much award flavor in results pricing. Current lean: miles + fees display with fictional program names, because it keeps the demo on-theme for its audience without real-world claims.
+- Whether the simulated inventory should eventually link to a real availability provider. Current answer: not until the labeled fiction can be replaced end to end.
 - Whether refinement input is the same box as initial search or a docked follow-up bar. Current lean: same box, it reinforces "one way in."
 - Tone of "why this result" copy: expert-friend vs neutral-tool. Current lean: expert-friend.
 - Phase 2 ordering: points-intelligence layer vs eval harness first. Genuinely undecided, and a good conversation to have with people who know the points data cold.

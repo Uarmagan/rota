@@ -14,7 +14,7 @@ items from Open decisions into the schema/PRD and note the choice inline.
   with default `gpt-5.6-luna`, few-shot prompt, 25 fixtures, `pnpm eval`. Live eval
   passed 25/25 fixtures (125/125 reps, 0 retries, ~1.05s p50) after one eval-driven
   policy flip (`next <weekday>`, below).
-- **Done:** M2 deterministic engine (2026-07-10): filtering, ranking, award pricing,
+- **Done:** M2 deterministic engine (2026-07-10): filtering, ranking, pricing,
   explanation facts, local-clock helpers, and visible defaults. All 54 focused engine
   tests pass.
 - **Done:** M3 simulated availability (2026-07-10): four deterministic fictional
@@ -23,7 +23,9 @@ items from Open decisions into the schema/PRD and note the choice inline.
 - **Done:** M4 API routes + prose (2026-07-11): three thin handlers, raw-batch SSE,
   guarded result prose, and deterministic fallback. The full suite passes 268 tests
   across 25 files.
-- **Current:** M5 UI.
+- **Current:** M6 Google-Flights pivot. Registry, cash pricing, real airline
+  identities, and geometry-derived durations are implemented; the UI relayout follows
+  separately.
 
 ## Open decisions
 
@@ -51,12 +53,13 @@ Blocking M1 (the parser prompt is built around the schema, so these change its c
 
 Non-blocking, decided before freezing the schema:
 
-- [x] **D3 — Multi-airport metros.** DECIDED: one airport per city for MVP; dropped HND
+- [x] **D3 — Multi-airport metros.** DECIDED for M0: one airport per city for MVP; dropped HND
       so every city resolves unambiguously (no soft LLM airport choice). Multi-airport
       metro codes (TYO expanded to member airports at search) deferred to phase 2 — the
       abstraction is disproportionate when only Tokyo ever had two airports, and no
       demo-path utterance needs it. See docs/adr/0003. (PLACES_VERSION bumped to
-      2026-07-10.1.)
+      2026-07-10.1.) Superseded in M6 by ADR 0008: registry-order bare-city
+      resolution now supports multiple airports without adding metro codes.
 - [x] **D4 — Generalize `assumed` beyond origin?** DECIDED: no. Three field states —
       stated, assumed, defaulted. Unstated cabin/travelers are FILLED in normalization
       (economy, 1) and shown as plain editable chips, so nothing is silently decided
@@ -116,12 +119,12 @@ The LLM boundary for words → TripIntent.
 The deterministic core over flight data. Pure TS, no mocks.
 
 - [x] `types.ts`: `FlightOption` (segments, times, duration, stops, cabin, source,
-      award price) + `ExplanationFacts`
+      cash price) + `ExplanationFacts`
 - [x] `filter.ts`: apply all TripIntent constraints (incl. `avoidLateArrival` /
       red-eye windows — engine defines 00:00–05:00 local)
 - [x] `rank.ts`: scoring + best-match, stable under incremental batches
       (nonstop 'preferred' boosts, 'required' filters)
-- [x] `pricing.ts`: award pricing math (miles + fees) from generator inputs
+- [x] `pricing.ts`: cash party-total math from generator inputs
 - [x] `explain.ts`: computed comparisons within the result set
 - **Done when:** every module unit-tested; import-boundary guard still green.
 
@@ -198,7 +201,23 @@ The deterministic core over flight data. Pure TS, no mocks.
   library was added. Reconsider a shared primitive only with a broader design-system
   need, not for these field editors alone.
 
-## M6 — Demo hardening
+## M6 — Google-Flights pivot
+
+- [x] Expand the versioned registry with registry-order metro resolution
+- [x] Generate real airline identities on labeled simulated inventory
+- [x] Derive route durations from airport geometry and static UTC offsets
+- [x] Replace points pricing with whole-dollar cash fares and party totals
+- [x] Preserve deterministic ranking, prose number provenance, and API contracts
+- [x] Relayout the UI as a merged ranked list with airline rows and a persistent
+      simulated-data label (2026-07-14): one rank-ordered list that FLIPs rows to
+      their new position on re-rank, airline names + flight numbers from segment
+      codes, price-forward rows, expandable itinerary details with layovers, and
+      a stream-status header (options · hidden-by-filters · sources answered).
+- **Status:** Done (2026-07-14). Full suite green (364 tests, incl. jsdom
+  interaction tests for the results list). Remaining by-hand demo walkthrough
+  belongs to M7.
+
+## M7 — Demo hardening
 
 - [ ] Walk the demo path against the success criteria: first result <3s, three-utterance
       refinement journey, zero LLM numbers (guard verified in an e2e pass)

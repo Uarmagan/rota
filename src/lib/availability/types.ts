@@ -23,13 +23,11 @@ export type DelayFn = (ms: number) => Promise<void>
 
 export interface SourcePersonality {
   id: string
-  program: string
   inventory: readonly [number, number]
   connectionBias: number
   cabinWeights: Readonly<Record<Cabin, number>>
-  milesMultiplier: number
-  milesJitter: number
-  feesUsd: readonly [number, number]
+  priceMultiplier: number
+  priceJitter: number
   batches: 1 | 2
   firstBatchMs: readonly [number, number]
   interBatchMs: readonly [number, number]

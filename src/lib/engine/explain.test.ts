@@ -6,40 +6,35 @@ function makeComparisonScenario() {
   const cheapest = makeOption({
     id: 'cheapest',
     totalDurationMinutes: 900,
-    pricing: {
-      baseMiles: 50_000,
-      feesUsd: 0,
-      program: 'Aurora Miles',
-    },
+    pricing: { priceUsd: 500 },
     segments: [
       {
         from: 'SFO',
         to: 'NRT',
         departLocal: '2027-02-10T10:00',
         arriveLocal: '2027-02-11T18:00',
+        flight: 'UA 101',
       },
     ],
   })
   const fastest = makeOption({
     id: 'fastest',
     totalDurationMinutes: 600,
-    pricing: {
-      baseMiles: 60_000,
-      feesUsd: 0,
-      program: 'Comet Rewards',
-    },
+    pricing: { priceUsd: 600 },
     segments: [
       {
         from: 'SFO',
         to: 'LAX',
         departLocal: '2027-02-10T10:00',
         arriveLocal: '2027-02-10T11:00',
+        flight: 'UA 201',
       },
       {
         from: 'LAX',
         to: 'NRT',
         departLocal: '2027-02-10T12:00',
         arriveLocal: '2027-02-11T12:00',
+        flight: 'NH 202',
       },
     ],
   })
@@ -65,11 +60,7 @@ describe('explainOption singleton result set', () => {
       optionId: 'opt-1',
       stops: 0,
       totalDurationMinutes: 660,
-      price: {
-        totalMiles: 60_000,
-        totalFeesUsd: 40,
-        program: 'Aurora Miles',
-      },
+      price: { totalUsd: 600 },
       isBestMatch: true,
       isCheapest: true,
       isFastest: true,
@@ -95,11 +86,7 @@ describe('explainOption result-set comparisons', () => {
       optionId: 'fastest',
       stops: 1,
       totalDurationMinutes: 600,
-      price: {
-        totalMiles: 120_000,
-        totalFeesUsd: 0,
-        program: 'Comet Rewards',
-      },
+      price: { totalUsd: 1200 },
       isBestMatch: true,
       isCheapest: false,
       isFastest: true,
@@ -109,7 +96,7 @@ describe('explainOption result-set comparisons', () => {
         stopsDelta: 1,
         durationDeltaMinutes: -300,
         arrivalDeltaMinutes: -360,
-        totalMilesDelta: 20_000,
+        totalUsdDelta: 200,
       },
       vsFastest: null,
     })
@@ -122,11 +109,7 @@ describe('explainOption result-set comparisons', () => {
       optionId: 'cheapest',
       stops: 0,
       totalDurationMinutes: 900,
-      price: {
-        totalMiles: 100_000,
-        totalFeesUsd: 0,
-        program: 'Aurora Miles',
-      },
+      price: { totalUsd: 1000 },
       isBestMatch: false,
       isCheapest: true,
       isFastest: false,
@@ -137,7 +120,7 @@ describe('explainOption result-set comparisons', () => {
         stopsDelta: -1,
         durationDeltaMinutes: 300,
         arrivalDeltaMinutes: 360,
-        totalMilesDelta: -20_000,
+        totalUsdDelta: -200,
       },
     })
   })

@@ -1,12 +1,4 @@
-export const UTC_OFFSET_MINUTES: Readonly<Record<string, number>> = {
-  ORD: -360,
-  SFO: -480,
-  JFK: -300,
-  NRT: 540,
-  LIS: 0,
-  LHR: 0,
-  CDG: 60,
-}
+import { airportInfo } from './airports'
 
 export function addMinutes(local: string, minutes: number): string {
   const [datePart, timePart] = local.split('T')
@@ -30,9 +22,7 @@ export function arrivalLocal(
   from: string,
   to: string,
 ): string {
-  const fromOffset = UTC_OFFSET_MINUTES[from]
-  const toOffset = UTC_OFFSET_MINUTES[to]
-  if (fromOffset === undefined) throw new Error(`Unknown UTC offset for ${from}`)
-  if (toOffset === undefined) throw new Error(`Unknown UTC offset for ${to}`)
+  const fromOffset = airportInfo(from).utcOffsetMinutes
+  const toOffset = airportInfo(to).utcOffsetMinutes
   return addMinutes(departLocal, durationMinutes + toOffset - fromOffset)
 }

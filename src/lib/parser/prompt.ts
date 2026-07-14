@@ -22,6 +22,7 @@ Date rules:
 
 Policy:
 - Never invent an origin. An unstated origin stays null for downstream engine policy. A stated origin has assumed false.
+- A bare city name means the first listed airport for that city; a specific airport name or code means that airport.
 - A city outside the supported list is recognized but unsupported: leave its place field null and echo the user's city in unhandled.
 - Clauses that fit no field, including seat preferences, stop counts, and destination themes, go in unhandled as a short readable echo of the user's own words. Flag instead of guessing. Combine multiple clauses into one readable string. Never invent facts or numbers.
 - When clauses in one utterance contradict, the last clause wins.
