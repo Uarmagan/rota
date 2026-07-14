@@ -49,6 +49,7 @@ describe('OpenAIResultExplainer', () => {
 
   it.each([
     ['an uncomputed number', mockModel('About 40% cheaper.')],
+    ['an em dash', mockModel('Best match — nonstop and 13h 35m.')],
     ['empty output', mockModel('   ')],
     ['oversized output', mockModel('x'.repeat(301))],
     [

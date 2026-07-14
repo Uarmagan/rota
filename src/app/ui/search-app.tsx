@@ -143,7 +143,7 @@ export function SearchApp() {
     } catch {
       if (controller.signal.aborted || searchRun.current !== run) return
       setStreaming(false)
-      setError('The search stream dropped — try again.')
+      setError('The search stream dropped. Try again.')
     }
   }
 
@@ -239,7 +239,7 @@ export function SearchApp() {
               <span className="text-xs text-neutral-500">
                 {gap?.kind === 'follow_up'
                   ? gap.question
-                  : 'Add dates to search — try “in february”.'}
+                  : 'Add dates to search. Try “in february”.'}
               </span>
             </div>
           )}
@@ -264,8 +264,8 @@ export function SearchApp() {
               onChange={(event) => setText(event.target.value)}
               placeholder={
                 hasIntent
-                  ? 'refine — “actually business class, nonstop if possible”'
-                  : 'describe your trip — “tokyo in feb for 2”'
+                  ? 'refine: “actually business class, nonstop if possible”'
+                  : 'describe your trip: “tokyo in feb for 2”'
               }
               className="w-full bg-transparent py-3.5 text-[15px] text-neutral-100 placeholder-neutral-600 outline-none"
             />
@@ -283,7 +283,7 @@ export function SearchApp() {
 
         {showResults && filtered.length === 0 && options.length > 0 && !streaming && (
           <p className="mt-6 text-sm text-neutral-500">
-            All {options.length} options are hidden by your filters — try
+            All {options.length} options are hidden by your filters. Try
             relaxing one.
           </p>
         )}
@@ -321,14 +321,14 @@ async function requestParse(
       ok: false,
       message:
         response.status === 422
-          ? 'I couldn’t turn that into a search — mind rephrasing?'
-          : 'Trouble reaching the parser — try again in a moment.',
+          ? 'I couldn’t turn that into a search. Mind rephrasing?'
+          : 'Trouble reaching the parser. Try again in a moment.',
     }
   } catch {
     if (signal.aborted) return null
     return {
       ok: false,
-      message: 'Trouble reaching the parser — try again in a moment.',
+      message: 'Trouble reaching the parser. Try again in a moment.',
     }
   }
 }

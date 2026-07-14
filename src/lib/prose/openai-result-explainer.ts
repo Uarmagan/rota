@@ -33,6 +33,7 @@ export class OpenAIResultExplainer implements ResultExplainer {
       if (
         candidate.length === 0 ||
         candidate.length > 300 ||
+        candidate.includes('—') ||
         !checkNumberProvenance(candidate, facts).ok
       ) {
         return fallback(facts)

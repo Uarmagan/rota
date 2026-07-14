@@ -77,7 +77,7 @@ describe('handleParse', () => {
       gap: {
         kind: 'follow_up',
         question:
-          'I couldn\'t use "somewhere warm" — and I still need a destination. Where would you like to fly?',
+          'I couldn\'t use "somewhere warm", and I still need a destination. Where would you like to fly?',
       },
     })
   })

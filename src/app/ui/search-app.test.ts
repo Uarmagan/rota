@@ -98,7 +98,7 @@ describe('SearchApp', () => {
     const input = await submitUtterance('tokio maybe')
 
     expect(
-      await screen.findByText('I couldn’t turn that into a search — mind rephrasing?'),
+      await screen.findByText('I couldn’t turn that into a search. Mind rephrasing?'),
     ).toBeTruthy()
     expect(input.value).toBe('tokio maybe')
     expect(router.requestsFor('/api/search')).toHaveLength(0)
@@ -285,7 +285,7 @@ describe('SearchApp', () => {
 
     expect(input.value).toBe('')
     expect(
-      screen.queryByText('Trouble reaching the parser — try again in a moment.'),
+      screen.queryByText('Trouble reaching the parser. Try again in a moment.'),
     ).toBeNull()
     expect(screen.getByText('SFO · San Francisco')).toBeTruthy()
     expect(screen.queryByText('parsing…')).toBeNull()
@@ -321,7 +321,7 @@ describe('SearchApp', () => {
     await submitUtterance('tokyo for 2')
 
     expect(await screen.findByText('When?')).toBeTruthy()
-    expect(screen.getByText('Add dates to search — try “in february”.')).toBeTruthy()
+    expect(screen.getByText('Add dates to search. Try “in february”.')).toBeTruthy()
     expect(router.requestsFor('/api/search')).toHaveLength(0)
   })
 
@@ -358,7 +358,7 @@ describe('SearchApp', () => {
     await stream.fail(new Error('connection dropped'))
 
     expect(
-      await screen.findByText('The search stream dropped — try again.'),
+      await screen.findByText('The search stream dropped. Try again.'),
     ).toBeTruthy()
   })
 
