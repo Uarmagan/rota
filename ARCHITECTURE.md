@@ -13,6 +13,8 @@ by convention.
 - Model configurable via env (`ROTA_MODEL`, default `gpt-5.6-luna`) at the lowest
   reasoning effort; malformed output gets one feedback retry after the Zod gate
 - Zod, Tailwind, Vitest
+- Base UI primitives through local shadcn-generated components, plus React DayPicker,
+  only for the chip-editor interaction layer
 
 ## Module map
 
@@ -64,6 +66,10 @@ src/
   app/              Next.js layer. Thin orchestration only. POST /api/parse runs
                     steps 1–3 plus gaps; GET /api/search streams raw source batches;
                     POST /api/explain turns client-computed facts into guarded copy.
+    ui/             Client presentation and route-adjacent interaction code. Local
+                    shadcn-generated Base UI primitives live in ui/primitives; they
+                    may depend on framework and presentation packages, never parser,
+                    prose, availability, or server implementations.
 ```
 
 Dependency direction (anything else is a violation):
