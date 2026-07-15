@@ -5,7 +5,10 @@ import type { IntentParser } from '../../lib/parser/intent-parser'
 import { OpenAIIntentParser } from '../../lib/parser/openai-intent-parser'
 import { OpenAIResultExplainer } from '../../lib/prose/openai-result-explainer'
 import type { ResultExplainer } from '../../lib/prose/result-explainer'
-import { SUPPORTED_PLACES } from '../../lib/schema/places'
+import {
+  SUPPORTED_PLACES,
+  airportAliasesForPlaces,
+} from '../../lib/schema/places'
 import type { Place } from '../../lib/schema/trip-intent'
 import { createModelCallGate } from '../../lib/server/request-gate'
 import { modelCallGateSettingsFromEnvironment } from '../../lib/server/request-gate-config'
@@ -25,6 +28,7 @@ export function createParser(): IntentParser {
   return new OpenAIIntentParser({
     today: isoToday(),
     supportedPlaces: SUPPORTED_PLACES,
+    airportAliases: airportAliasesForPlaces(SUPPORTED_PLACES),
   })
 }
 

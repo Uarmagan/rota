@@ -11,9 +11,9 @@ import type { Place } from './trip-intent'
 // the simulated availability dataset — bump the version when entries change so
 // fixtures pin what they were written against.
 
-export const PLACES_VERSION = '2026-07-14.1'
+export const PLACES_VERSION = '2026-07-14.2'
 
-export const SUPPORTED_PLACES: readonly Place[] = [
+export const SUPPORTED_PLACES = [
   { iata: 'JFK', city: 'New York' },
   { iata: 'LGA', city: 'New York' },
   { iata: 'EWR', city: 'Newark' },
@@ -77,7 +77,41 @@ export const SUPPORTED_PLACES: readonly Place[] = [
   { iata: 'MEX', city: 'Mexico City' },
   { iata: 'YYZ', city: 'Toronto' },
   { iata: 'YVR', city: 'Vancouver' },
-]
+] as const satisfies readonly Place[]
+
+export type SupportedIataCode = (typeof SUPPORTED_PLACES)[number]['iata']
+export type AirportAliasMap = Readonly<
+  Partial<Record<SupportedIataCode, readonly string[]>>
+>
+
+// Parser vocabulary only. Availability owns display names, geometry, and flight
+// metadata; these compact spoken forms exist solely to ground language parsing.
+export const PLACE_AIRPORT_ALIASES: AirportAliasMap = {
+  JFK: ['John F. Kennedy', 'JFK Airport'],
+  LGA: ['LaGuardia'],
+  EWR: ['Newark Liberty'],
+  ORD: ["O'Hare", "Chicago O'Hare"],
+  MDW: ['Midway', 'Chicago Midway'],
+  SFO: ['San Francisco International'],
+  OAK: ['Oakland', 'Oakland International'],
+  LHR: ['Heathrow', 'London Heathrow'],
+  LGW: ['Gatwick', 'London Gatwick'],
+  STN: ['Stansted', 'London Stansted'],
+  CDG: ['Charles de Gaulle', 'Paris Charles de Gaulle'],
+  ORY: ['Orly', 'Paris Orly'],
+  NRT: ['Narita', 'Tokyo Narita'],
+  HND: ['Haneda', 'Tokyo Haneda'],
+} as const satisfies AirportAliasMap
+
+export function airportAliasesForPlaces(
+  places: readonly Place[],
+): AirportAliasMap {
+  const aliases = places.flatMap((place) => {
+    const names = PLACE_AIRPORT_ALIASES[place.iata as SupportedIataCode]
+    return names ? [[place.iata, names] as const] : []
+  })
+  return Object.freeze(Object.fromEntries(aliases)) as AirportAliasMap
+}
 
 export function findSupportedPlace(iata: string): Place | null {
   return SUPPORTED_PLACES.find((place) => place.iata === iata) ?? null

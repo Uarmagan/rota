@@ -1,4 +1,7 @@
-import type { ParserFixture } from '../src/lib/parser/fixtures'
+import type {
+  ParserEvaluationCase,
+  ParserFixture,
+} from '../src/lib/parser/fixtures'
 
 export interface EvalOptions {
   reps: number
@@ -9,19 +12,26 @@ export interface EvalOptions {
 
 const MIN_CHALLENGE_REPS = 5
 
-export function selectFixtures(
-  fixtures: readonly ParserFixture[],
+export function selectEvaluationCases(
+  cases: readonly ParserEvaluationCase[],
   options: EvalOptions,
-): readonly ParserFixture[] {
-  const namedFixtures = options.fixture
-    ? fixtures.filter((fixture) => fixture.name === options.fixture)
-    : fixtures
+): readonly ParserEvaluationCase[] {
+  const canonicalMatches = options.fixture
+    ? cases.filter(
+        (evaluationCase) => evaluationCase.canonicalName === options.fixture,
+      )
+    : []
+  const namedCases = options.fixture
+    ? canonicalMatches.length > 0
+      ? canonicalMatches
+      : cases.filter((evaluationCase) => evaluationCase.name === options.fixture)
+    : cases
 
-  if (namedFixtures.length === 0) throw new Error(`Unknown fixture: ${options.fixture}`)
+  if (namedCases.length === 0) throw new Error(`Unknown fixture: ${options.fixture}`)
 
   const selected = options.challengeOnly
-    ? namedFixtures.filter((fixture) => fixture.challenge)
-    : namedFixtures
+    ? namedCases.filter((evaluationCase) => evaluationCase.challenge)
+    : namedCases
 
   if (selected.length === 0) throw new Error('No challenge fixtures matched')
   return selected
@@ -53,7 +63,7 @@ export function unhandledMatches(
   const expected = fixture.expectedUnhandled
   if ((actual === null) !== (expected === null)) return false
   if (!fixture.challenge || expected === null) return true
-  return actual !== null && containsExpectedPhrase(actual, expected)
+  return actual !== null && normalizedPhrasesEqual(actual, expected)
 }
 
 export function wordingHit(
@@ -111,6 +121,16 @@ function containsExpectedPhrase(actual: string, expected: string): boolean {
     }
   }
   return false
+}
+
+function normalizedPhrasesEqual(actual: string, expected: string): boolean {
+  const actualTokens = normalizedTokens(actual)
+  const expectedTokens = normalizedTokens(expected)
+  return (
+    actualTokens.length > 0 &&
+    actualTokens.length === expectedTokens.length &&
+    actualTokens.every((token, index) => token === expectedTokens[index])
+  )
 }
 
 function normalizedTokens(value: string): readonly string[] {

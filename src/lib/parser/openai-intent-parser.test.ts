@@ -1,13 +1,19 @@
 import { APICallError } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SUPPORTED_PLACES } from '../schema/places'
+import {
+  PLACE_AIRPORT_ALIASES,
+  SUPPORTED_PLACES,
+  airportAliasesForPlaces,
+} from '../schema/places'
 import {
   createEmptyTripIntent,
   type ParseResult,
 } from '../schema/trip-intent'
 import { ParserError } from './intent-parser'
 import { OpenAIIntentParser } from './openai-intent-parser'
+import { buildSystemPrompt } from './prompt'
+import { parserEvaluationCases } from './fixtures'
 
 const openaiMock = vi.hoisted(() => ({
   model: undefined as MockLanguageModelV3 | undefined,
@@ -23,6 +29,7 @@ vi.mock('@ai-sdk/openai', () => ({
 const context = {
   today: '2026-07-09',
   supportedPlaces: SUPPORTED_PLACES,
+  airportAliases: airportAliasesForPlaces(SUPPORTED_PLACES),
 }
 
 const validResult: ParseResult = {
@@ -49,6 +56,62 @@ describe('OpenAIIntentParser', () => {
 
     expect(result).toEqual(validResult)
     expect(model.doGenerateCalls).toHaveLength(1)
+  })
+
+  it('grounds airport names in the versioned, context-filtered place vocabulary', () => {
+    const prompt = buildSystemPrompt(context)
+    const narita = prompt.indexOf('NRT: Tokyo (airport names: Narita, Tokyo Narita)')
+    const haneda = prompt.indexOf('HND: Tokyo (airport names: Haneda, Tokyo Haneda)')
+
+    expect(narita).toBeGreaterThan(-1)
+    expect(haneda).toBeGreaterThan(narita)
+    expect(prompt).toContain(
+      'NRT: Tokyo (airport names: Narita, Tokyo Narita) [bare city default]',
+    )
+    expect(prompt).not.toContain(
+      'HND: Tokyo (airport names: Haneda, Tokyo Haneda) [bare city default]',
+    )
+    expect(prompt).not.toContain('HND: Tokyo (airport names: Narita')
+
+    const legacyPlaces = SUPPORTED_PLACES.filter((place) =>
+      ['ORD', 'SFO', 'JFK', 'NRT', 'LIS', 'LHR', 'CDG'].includes(place.iata),
+    )
+    const legacyPrompt = buildSystemPrompt({
+      today: context.today,
+      supportedPlaces: legacyPlaces,
+      airportAliases: airportAliasesForPlaces(legacyPlaces),
+    })
+    expect(legacyPrompt).toContain('NRT: Tokyo (airport names: Narita, Tokyo Narita)')
+    expect(legacyPrompt).not.toContain('Haneda')
+    expect(legacyPrompt).not.toContain('Midway')
+  })
+
+  it('keeps airport aliases unique and limited to supported registry keys', () => {
+    const supportedCodes = new Set<string>(
+      SUPPORTED_PLACES.map((place) => place.iata),
+    )
+    const aliases = Object.entries(PLACE_AIRPORT_ALIASES).flatMap(
+      ([iata, names]) => names.map((name) => [iata, name.toLocaleLowerCase()] as const),
+    )
+
+    expect(
+      Object.keys(PLACE_AIRPORT_ALIASES).every((iata) => supportedCodes.has(iata)),
+    ).toBe(true)
+    expect(new Set(aliases.map(([, name]) => name)).size).toBe(aliases.length)
+    expect(
+      Object.keys(
+        airportAliasesForPlaces([{ iata: 'HND', city: 'Tokyo' }]),
+      ),
+    ).toEqual(['HND'])
+  })
+
+  it('keeps strict challenge utterances out of prompt examples', () => {
+    const prompt = buildSystemPrompt(context).toLocaleLowerCase()
+    for (const fixture of parserEvaluationCases.filter(
+      (candidate) => candidate.challenge,
+    )) {
+      expect(prompt).not.toContain(fixture.utterance.toLocaleLowerCase())
+    }
   })
 
   it('retries once with feedback when a schema refinement fails', async () => {

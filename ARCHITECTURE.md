@@ -20,8 +20,10 @@ by convention.
 src/
   lib/
     schema/         Shared vocabulary. TripIntent Zod schema + inferred types,
-                    IntentDiff types, and the canonical place registry
-                    (places.ts). Depends on zod only. No logic.
+                    IntentDiff types, and the canonical place registry plus
+                    versioned parser-visible airport aliases (places.ts).
+                    Contains vocabulary lookup/filter helpers, but no product
+                    policy. Imports only zod or other schema modules.
     engine/         The deterministic core. Pure TypeScript, zero framework and
                     zero LLM dependencies. Fully unit-testable without mocks.
                       normalize.ts  canonicalizePlaces: map every parser-emitted
@@ -44,7 +46,8 @@ src/
                       types.ts      FlightOption and other engine domain types
     parser/         LLM boundary #1. IntentParser interface +
                     OpenAIIntentParser implementation, system prompt, committed
-                    fixture set. Returns ParseResult through Output.object and a
+                    fixture set. ParserContext receives registry-filtered airport
+                    aliases from schema vocabulary. Returns ParseResult through Output.object and a
                     Zod gate, then membership-checks the schema registry so every
                     model-mistake retry stays here. Depends on schema, never engine.
     availability/   AvailabilityProvider interface + simulated sources, a
@@ -80,6 +83,12 @@ and (d) prose non-test files import only LLM packages, Zod, schema, engine, and 
 Because the engine is pure TS with no framework dependency, it runs identically on the
 server and in the client bundle — the client re-ranks streamed results locally with the
 same code the tests exercise.
+
+Airport aliases are parser vocabulary owned beside the versioned place registry.
+Availability continues to own display names, coordinates, offsets, and hub metadata.
+Aliases do not enter `Place`, `TripIntent`, `ParseResult`, or any API wire shape; those
+schemas remain frozen, and the membership gate still accepts IATA codes only from the
+context's `supportedPlaces` list.
 
 ## The intent pipeline
 
@@ -157,11 +166,11 @@ interface ResultExplainer {
 ```
 
 The OpenAI `IntentParser` is constructed with a request-scoped
-`ParserContext { today, supportedPlaces }` (the registry, versioned in
-`schema/places.ts`) so relative dates ("in feb") resolve against explicit, testable
-inputs and the prompt only ever offers places the simulation knows. The default origin
-is **not** parser context — it belongs to the engine's normalize config, because the
-parser never uses it.
+`ParserContext { today, supportedPlaces, airportAliases }` (the registry and aliases,
+versioned in `schema/places.ts`) so relative dates ("in feb") resolve against explicit,
+testable inputs and the prompt only ever offers places and airport names the simulation
+knows. The default origin is **not** parser context — it belongs to the engine's
+normalize config, because the parser never uses it.
 
 The parser returns raw, pre-canonicalization `ParseResult` and owns all model-mistake
 retries. Invalid JSON, Zod failures, and registry-membership failures get at most one
@@ -198,17 +207,22 @@ the feedback-retry path.
   constraint. Normalize (canonicalization + assumption-fill), diff, gaps, filter, rank,
   pricing, explain-facts all covered directly.
 - `parser`: the committed fixture set (`src/lib/parser/fixtures.ts`) is the product
-  requirement from PRD §6. The runner asserts, per fixture: (a) deep equality of
+  requirement from PRD §6. It currently contains 47 canonical fixtures expanded into
+  59 deterministic evaluation cases; 19 canonical challenge fixtures expand to 31
+  strict challenge cases. Curated variants inherit the canonical fixture's complete
+  expected state, while minimal-pair fixtures carry their own deliberately different
+  expectations. The runner asserts, per case: (a) deep equality of
   `canonicalizePlaces(parsed)` against the **full** expected intent — preservation of
   unmentioned fields is structurally asserted, not spot-checked; (b) that
   `computeIntentDiff(currentIntent, result)` touches exactly the expected changed-field
-  set; and (c) `unhandled` null-ness matches its expectation. Assumption-filling is deliberately not applied in the runner: fixtures pin the
+  set; and (c) `unhandled` null-ness matches its expectation. Assumption-filling is deliberately not applied in the runner: cases pin the
   parser stage (origin stays null on a first query); the fill is engine-tested
-  separately. `pnpm eval` runs five live reps per fixture and reports retry rate,
+  separately. `pnpm eval` runs five live reps per expanded case and reports retry rate,
   p50/p95 latency, and soft wording matches. Correctness requires at least 4/5 reps, or
   5/5 for hostile fixtures. The challenge tier (`pnpm eval -- --challenge`) rejects
-  runs below five reps, requires every rep to pass, and hard-grades the complete
-  normalized expected unhandled phrase; failed reps print their exact intent, diff, or
+  runs below five reps, requires every rep to pass, and requires non-null `unhandled`
+  to equal the expected phrase after Unicode, case, and punctuation normalization;
+  failed reps print their exact intent, diff, or
   unhandled mismatch. The networked eval spends money and never runs in CI; fixture
   self-consistency remains model-independent.
 - `availability`: seeded simulation, deterministic assertions on batch ordering and

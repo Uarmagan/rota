@@ -1,13 +1,16 @@
 import { isDeepStrictEqual } from 'node:util'
 import { computeIntentDiff } from '../src/lib/engine/diff'
 import { canonicalizePlaces } from '../src/lib/engine/normalize'
-import { parserFixtures, type ParserFixture } from '../src/lib/parser/fixtures'
+import {
+  parserEvaluationCases,
+  type ParserEvaluationCase,
+} from '../src/lib/parser/fixtures'
 import { OpenAIIntentParser } from '../src/lib/parser/openai-intent-parser'
 import {
   parseArgs,
   requiredCorrectReps,
   requiresPerfectRun,
-  selectFixtures,
+  selectEvaluationCases,
   unhandledMatches as matchesUnhandled,
   validateFixtureRun,
   wordingHit,
@@ -38,7 +41,7 @@ async function main(): Promise<void> {
   }
 
   const options = parseArgs(process.argv.slice(2))
-  const fixtures = selectFixtures(parserFixtures, options)
+  const fixtures = selectEvaluationCases(parserEvaluationCases, options)
   validateFixtureRun(fixtures, options.reps)
 
   const rows: ScorecardRow[] = []
@@ -88,14 +91,14 @@ async function main(): Promise<void> {
     `Overall: ${overall} | ` +
       `model: ${options.model ?? process.env.ROTA_MODEL ?? 'gpt-5.6-luna'} | ` +
       `suite: ${options.challengeOnly ? 'challenge' : 'all'} | ` +
-      `fixtures: ${passingFixtures}/${fixtures.length} | reps: ${passingReps}/${totalReps}`,
+      `cases: ${passingFixtures}/${fixtures.length} | reps: ${passingReps}/${totalReps}`,
   )
 
   if (passingFixtures !== fixtures.length) process.exitCode = 1
 }
 
 async function runRep(
-  fixture: ParserFixture,
+  fixture: ParserEvaluationCase,
   model: string | undefined,
 ): Promise<RepResult> {
   const parser = new OpenAIIntentParser(fixture.context, { model })

@@ -1,8 +1,10 @@
 import type { ParseResult, Place, TripIntent } from '../schema/trip-intent'
+import type { AirportAliasMap } from '../schema/places'
 
 export interface ParserContext {
   today: string
   supportedPlaces: readonly Place[]
+  airportAliases: AirportAliasMap
 }
 
 export interface IntentParser {

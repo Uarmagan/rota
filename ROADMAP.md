@@ -12,11 +12,13 @@ items from Open decisions into the schema/PRD and note the choice inline.
   Typecheck + 70 tests green.
 - **Done:** M1 parser (2026-07-10; challenge hardening 2026-07-14): parser seam,
   retry policy, direct `@ai-sdk/openai` with default `gpt-5.6-luna`, few-shot prompt,
-  and `pnpm eval`. The corpus now has 38 fixtures (28 core, 10 strict challenge).
+  and `pnpm eval`. The corpus now has 47 canonical fixtures and 59 expanded eval
+  cases; the strict tier has 19 canonical fixtures and 31 expanded cases.
   The original live eval passed 25/25 fixtures (125/125 reps, 0 retries, ~1.05s p50);
   the post-hardening full corpus passed 38/38 (190/190 reps, 0 retries,
   0.96–1.22s per-fixture p50) after eval-driven grammar-vs-place, representable-clue,
-  and correction-policy fixes.
+  and correction-policy fixes. The expanded strict matrix passed 31/31 cases
+  (155/155 reps, 0 retries) on 2026-07-14.
 - **Done:** M2 deterministic engine (2026-07-10): filtering, ranking, pricing,
   explanation facts, local-clock helpers, and visible defaults. All 54 focused engine
   tests pass.
@@ -26,9 +28,9 @@ items from Open decisions into the schema/PRD and note the choice inline.
 - **Done:** M4 API routes + prose (2026-07-11): three thin handlers, raw-batch SSE,
   guarded result prose, and deterministic fallback. The full suite passes 268 tests
   across 25 files.
-- **Current:** M6 Google-Flights pivot. Registry, cash pricing, real airline
-  identities, and geometry-derived durations are implemented; the UI relayout follows
-  separately.
+- **Current:** M7 demo hardening. Strict parser challenge coverage is implemented;
+  the end-to-end demo walkthrough and hostile-input behavior through the real UI
+  remain.
 
 ## Open decisions
 
@@ -91,7 +93,7 @@ The LLM boundary for words → TripIntent.
 - [x] `IntentParser` returning `ParseResult` + direct OpenAI implementation
       (`generateText` + `Output.object`, model from `ROTA_MODEL`)
 - [x] System prompt: full-state re-emission rules, ParserContext (today +
-      supportedPlaces), hostile-input identity policy
+      supportedPlaces + versioned airport aliases), hostile-input identity policy
 - [x] Parse wrapper: Zod gate + registry-membership gate → one feedback retry;
       canonicalization remains the next engine pipeline step
 - [x] Live-model eval script running the fixture suite (`pnpm eval`), reusing the
@@ -225,8 +227,10 @@ The deterministic core over flight data. Pure TS, no mocks.
 
 ## M7 — Demo hardening
 
-- [x] Add a strict 10-case parser challenge tier for named-party inference, noisy
-      fragments, self-correction, explicit waivers, and unsupported place qualifiers
+- [x] Maintain a strict parser challenge tier (19 canonical fixtures, 31 expanded
+      cases) for named-party inference, named airports, noisy fragments, metamorphic
+      wording families, role/count minimal pairs, self-correction, explicit waivers,
+      and unsupported place qualifiers
 - [ ] Walk the demo path against the success criteria: first result <3s, three-utterance
       refinement journey, zero LLM numbers (guard verified in an e2e pass)
 - [ ] Graceful degradation pass on hostile fixtures through the real UI
