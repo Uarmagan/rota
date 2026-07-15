@@ -21,6 +21,11 @@ import {
   createEmptyTripIntent,
   type TripIntent,
 } from '../../lib/schema/trip-intent'
+import {
+  DEMO_API_ERROR_CODES,
+  isDemoApiErrorCode,
+  type DemoApiErrorCode,
+} from '../../lib/server/demo-api-errors'
 import { ChipsRow, PromptChip, type ChipAnimation } from './chips'
 import { Results } from './results'
 import { searchStream } from './stream'
@@ -32,6 +37,20 @@ type ParseOutcome =
 type AppError =
   | { kind: 'message'; message: string }
   | { kind: 'budget_exhausted' }
+
+const DEMO_LIMIT_ERROR = {
+  kind: 'message',
+  message: 'Demo limit reached. Try again in a few minutes.',
+} satisfies AppError
+
+const BUDGET_EXHAUSTED_ERROR = {
+  kind: 'budget_exhausted',
+} satisfies AppError
+
+const PARSER_UNAVAILABLE_ERROR = {
+  kind: 'message',
+  message: 'Trouble reaching the parser. Try again in a moment.',
+} satisfies AppError
 
 interface WhyLine {
   optionId: string
@@ -172,7 +191,20 @@ export function SearchApp() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ facts }),
       })
-      if (!response.ok || searchRun.current !== run) return
+      if (searchRun.current !== run) return
+      if (response.status === 429) {
+        setError(DEMO_LIMIT_ERROR)
+        return
+      }
+      if (
+        response.status === 503 &&
+        (await responseErrorCode(response)) ===
+          DEMO_API_ERROR_CODES.budgetExhausted
+      ) {
+        setError(BUDGET_EXHAUSTED_ERROR)
+        return
+      }
+      if (!response.ok) return
       const explanation = (await response.json()) as { text: string }
       setWhy({ optionId: best.id, text: explanation.text })
     } catch {
@@ -328,19 +360,14 @@ async function requestParse(
       return { ok: true, intent: body.intent, gap: body.gap }
     }
     if (response.status === 429) {
-      return {
-        ok: false,
-        error: {
-          kind: 'message',
-          message: 'Demo limit reached. Try again in a few minutes.',
-        },
-      }
+      return { ok: false, error: DEMO_LIMIT_ERROR }
     }
     if (
       response.status === 503 &&
-      (await responseErrorCode(response)) === 'demo_budget_exhausted'
+      (await responseErrorCode(response)) ===
+        DEMO_API_ERROR_CODES.budgetExhausted
     ) {
-      return { ok: false, error: { kind: 'budget_exhausted' } }
+      return { ok: false, error: BUDGET_EXHAUSTED_ERROR }
     }
     return {
       ok: false,
@@ -349,25 +376,21 @@ async function requestParse(
         message:
           response.status === 422
             ? 'I couldn’t turn that into a search. Mind rephrasing?'
-            : 'Trouble reaching the parser. Try again in a moment.',
+            : PARSER_UNAVAILABLE_ERROR.message,
       },
     }
   } catch {
     if (signal.aborted) return null
-    return {
-      ok: false,
-      error: {
-        kind: 'message',
-        message: 'Trouble reaching the parser. Try again in a moment.',
-      },
-    }
+    return { ok: false, error: PARSER_UNAVAILABLE_ERROR }
   }
 }
 
-async function responseErrorCode(response: Response): Promise<string | null> {
+async function responseErrorCode(
+  response: Response,
+): Promise<DemoApiErrorCode | null> {
   try {
     const body = (await response.json()) as { error?: unknown }
-    return typeof body.error === 'string' ? body.error : null
+    return isDemoApiErrorCode(body.error) ? body.error : null
   } catch {
     return null
   }

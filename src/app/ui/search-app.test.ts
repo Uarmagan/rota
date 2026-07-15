@@ -141,6 +141,34 @@ describe('SearchApp', () => {
     )
   })
 
+  it.each([
+    [
+      'visitor allowance',
+      Response.json({ error: 'rate_limited' }, { status: 429 }),
+      'Demo limit reached. Try again in a few minutes.',
+    ],
+    [
+      'demo budget',
+      Response.json(
+        { error: 'demo_budget_exhausted' },
+        { status: 503 },
+      ),
+      'Live AI is paused because this month’s demo budget',
+    ],
+  ])('surfaces the %s boundary when fetching a why-line', async (_case, response, copy) => {
+    const router = new FetchRouter()
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(
+      sseResponse([batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]),
+    )
+    router.explain.push(response)
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+
+    expect(await screen.findByText(new RegExp(copy))).toBeTruthy()
+  })
+
   it('keeps a direct origin edit when an older parse resolves', async () => {
     const user = userEvent.setup()
     const router = new FetchRouter()

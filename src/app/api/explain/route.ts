@@ -1,4 +1,5 @@
 import type { ResultExplainer } from '../../../lib/prose/result-explainer'
+import { DEMO_API_ERROR_CODES } from '../../../lib/server/demo-api-errors'
 import { parseExplanationRequest } from '../../../lib/server/llm-route-contracts'
 import { clientKeyForRequest } from '../../../lib/server/request-client'
 import type { ModelCallGate } from '../../../lib/server/request-gate'
@@ -29,7 +30,14 @@ export async function handleExplain(
   if (!decision.ok) return rateLimited(decision.retryAfterMs)
 
   try {
-    return Response.json(await explainer.explain(parsedBody.data.facts))
+    const result = await explainer.explain(parsedBody.data.facts)
+    if (result.source === 'budget_exhausted') {
+      return Response.json(
+        { error: DEMO_API_ERROR_CODES.budgetExhausted },
+        { status: 503 },
+      )
+    }
+    return Response.json(result)
   } finally {
     decision.permit.release()
   }

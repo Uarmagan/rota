@@ -55,6 +55,23 @@ describe('handleExplain', () => {
     })
   })
 
+  it('returns the public budget boundary when explainer credits are exhausted', async () => {
+    const explainer: ResultExplainer = {
+      explain: async () => ({ source: 'budget_exhausted' }),
+    }
+
+    const response = await handleExplain(
+      explainRequest({ facts }),
+      explainer,
+      allowingGate,
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: 'demo_budget_exhausted',
+    })
+  })
+
   it('rejects schema-invalid facts without calling the explainer', async () => {
     const explain = vi.fn<ResultExplainer['explain']>()
     const { vsCheapest: _omitted, ...invalidFacts } = facts

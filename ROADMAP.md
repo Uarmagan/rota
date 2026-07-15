@@ -230,7 +230,7 @@ The deterministic core over flight data. Pure TS, no mocks.
 - [ ] Walk the demo path against the success criteria: first result <3s, three-utterance
       refinement journey, zero LLM numbers (guard verified in an e2e pass)
 - [ ] Graceful degradation pass on hostile fixtures through the real UI
-- [ ] README with run instructions
+- [x] README with run instructions and a verified live-demo screenshot (2026-07-14)
 - **Done when:** a first-time viewer understands it in one query, no narration.
 
 ## Explicitly parked (phase 2, per PRD)

@@ -343,10 +343,11 @@ booking service. It stays outside the primary demo flow and never becomes a bann
 prominent warning.
 _Avoid_: warning banner, hero disclaimer
 
-**Showcase mode**:
-The public demo state after the Demo budget is exhausted. It clearly explains why paid
-language features are paused while keeping preset searches, direct intent editing,
-simulated results, and deterministic explanations available.
+**Showcase mode (planned)**:
+A deferred public demo state for after the Demo budget is exhausted. It will explain why
+paid language features are paused while keeping preset searches, direct intent editing,
+simulated results, and deterministic explanations available. It is tracked in GitHub
+issue #6 and is not part of the initial open-source release.
 _Avoid_: outage, broken demo, credits error
 
 **Open-source demo**:

@@ -1,10 +1,14 @@
 import { openai } from '@ai-sdk/openai'
-import { generateText } from 'ai'
+import { APICallError, generateText, RetryError } from 'ai'
 import type { ExplanationFacts } from '../engine/types'
 import { checkNumberProvenance } from './number-guard'
 import { buildSystemPrompt, buildUserMessage } from './prompt'
 import { fallbackLine } from './render'
-import type { Explanation, ResultExplainer } from './result-explainer'
+import type {
+  Explanation,
+  ExplanationOutcome,
+  ResultExplainer,
+} from './result-explainer'
 
 interface ExplainerOptions {
   model?: string
@@ -17,7 +21,7 @@ export class OpenAIResultExplainer implements ResultExplainer {
     this.modelId = options.model ?? process.env.ROTA_MODEL ?? 'gpt-5.6-luna'
   }
 
-  async explain(facts: ExplanationFacts): Promise<Explanation> {
+  async explain(facts: ExplanationFacts): Promise<ExplanationOutcome> {
     try {
       const { text } = await generateText({
         model: openai(this.modelId),
@@ -39,7 +43,8 @@ export class OpenAIResultExplainer implements ResultExplainer {
         return fallback(facts)
       }
       return { text: candidate, source: 'model' }
-    } catch {
+    } catch (error) {
+      if (isBudgetExhausted(error)) return { source: 'budget_exhausted' }
       return fallback(facts)
     }
   }
@@ -47,4 +52,26 @@ export class OpenAIResultExplainer implements ResultExplainer {
 
 function fallback(facts: ExplanationFacts): Explanation {
   return { text: fallbackLine(facts), source: 'fallback' }
+}
+
+const BUDGET_ERROR_PATTERN =
+  /insufficient_quota|billing_hard_limit_reached|usage_limit_reached|exceeded your current quota|credit balance/i
+
+function isBudgetExhausted(error: unknown): boolean {
+  const candidates = RetryError.isInstance(error) ? error.errors : [error]
+  return candidates.some((candidate) => {
+    if (!APICallError.isInstance(candidate)) return false
+    return [candidate.data, candidate.responseBody, candidate.message].some(
+      (value) => BUDGET_ERROR_PATTERN.test(serialized(value)),
+    )
+  })
+}
+
+function serialized(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return ''
+  }
 }

@@ -1,3 +1,4 @@
+import { APICallError } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExplanationFacts } from '../engine/types'
@@ -62,6 +63,28 @@ describe('OpenAIResultExplainer', () => {
     await expect(new OpenAIResultExplainer().explain(facts)).resolves.toEqual({
       text: fallbackLine(facts),
       source: 'fallback',
+    })
+  })
+
+  it('surfaces an exhausted provider quota instead of hiding it as prose fallback', async () => {
+    openaiMock.model = new MockLanguageModelV3({
+      doGenerate: async () => {
+        throw new APICallError({
+          message: 'You exceeded your current quota',
+          url: 'https://api.openai.com/v1/responses',
+          requestBodyValues: {},
+          statusCode: 429,
+          responseHeaders: {},
+          responseBody: JSON.stringify({
+            error: { code: 'insufficient_quota' },
+          }),
+          isRetryable: false,
+        })
+      },
+    })
+
+    await expect(new OpenAIResultExplainer().explain(facts)).resolves.toEqual({
+      source: 'budget_exhausted',
     })
   })
 })

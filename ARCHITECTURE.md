@@ -150,7 +150,9 @@ interface IntentParser {
 }
 
 interface ResultExplainer {
-  explain(facts: ExplanationFacts): Promise<Explanation>
+  explain(facts: ExplanationFacts): Promise<
+    Explanation | { source: 'budget_exhausted' }
+  >
 }
 ```
 
@@ -164,16 +166,20 @@ parser never uses it.
 The parser returns raw, pre-canonicalization `ParseResult` and owns all model-mistake
 retries. Invalid JSON, Zod failures, and registry-membership failures get at most one
 feedback retry; the SDK separately gets one transport retry. Exhaustion throws typed
-`ParserError` with reason `invalid_output` or `transport`. Hostile identity output is
-valid and never retried. Refusal and token-cutoff are parse failures, not malformed JSON
-to retry blindly. The parser duplicates the versioned registry membership lookup
-rather than importing engine normalization; ADR 0006 records why.
+`ParserError` with reason `invalid_output`, `transport`, or `budget_exhausted`. The API
+maps those to 422, 502, and the public `demo_budget_exhausted` 503 response respectively.
+Hostile identity output is valid and never retried. Refusal and token-cutoff are parse
+failures, not malformed JSON to retry blindly. The parser duplicates the versioned
+registry membership lookup rather than importing engine normalization; ADR 0006 records
+why.
 
 The OpenAI `ResultExplainer` receives only pre-rendered numeric strings derived from
 `ExplanationFacts`; the model quotes those values rather than formatting or converting
 them. It has no feedback retry: empty, oversized, rejected, or failed prose falls back
 immediately to a deterministic template because prose is decorative while parsing is
-load-bearing. The result carries `source: 'model' | 'fallback'` for observability.
+load-bearing. The result carries `source: 'model' | 'fallback'` for observability. An
+exhausted provider quota is the one non-prose outcome: it returns
+`source: 'budget_exhausted'` so the route can expose the public 503 budget boundary.
 
 Hostile or nonsense input degrades to identity: an utterance that is primarily a
 meta-instruction (prompt injection, out-of-domain demands, gibberish) re-emits

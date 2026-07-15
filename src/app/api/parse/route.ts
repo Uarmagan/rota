@@ -5,6 +5,7 @@ import {
   fillDefaults,
 } from '../../../lib/engine/normalize'
 import { ParserError, type IntentParser } from '../../../lib/parser/intent-parser'
+import { DEMO_API_ERROR_CODES } from '../../../lib/server/demo-api-errors'
 import { parseIntentRequest } from '../../../lib/server/llm-route-contracts'
 import { clientKeyForRequest } from '../../../lib/server/request-client'
 import type { ModelCallGate } from '../../../lib/server/request-gate'
@@ -48,7 +49,7 @@ export async function handleParse(
     if (error instanceof ParserError) {
       if (error.reason === 'budget_exhausted') {
         return Response.json(
-          { error: 'demo_budget_exhausted' },
+          { error: DEMO_API_ERROR_CODES.budgetExhausted },
           { status: 503 },
         )
       }
