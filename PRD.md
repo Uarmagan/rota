@@ -30,7 +30,7 @@ Anyone who books their own flights and has ever opened four tabs to answer one q
 Behavioral rules, not tech choices. Every feature is downstream of these.
 
 1. **The AI never silently decides.** Every interpretation of your words renders as editable, structured facts. You can always see what it understood and correct it in one tap.
-2. **The AI interprets, the engine computes.** Language models turn words into structure and structure into prose. Every number, price, ranking, and result on screen comes from deterministic logic. No exceptions, and this is checkable.
+2. **The AI interprets, the engine computes.** Language models turn the user's words into visible trip structure and computed facts into prose. Structured chip values may be translated from the utterance (three named travelers → Travelers: 3); every availability fact, price, duration, ranking, comparison, and result number comes from deterministic logic. No invented trip facts, and this is checkable.
 3. **Conversation edits state, it doesn't accumulate history.** A follow-up like "actually make it nonstop" doesn't append to a chat log. It changes a chip, and the change is visible. The chips are the source of truth; the conversation is just the fastest way to edit them.
 4. **Speed should feel alive.** Results stream in progressively and re-rank as they land. Partial answers now beat complete answers later.
 
@@ -65,9 +65,9 @@ Results stream in grouped by (simulated) source as each responds. Skeleton state
 
 Each top result gets a one-or-two-line explanation generated strictly from computed facts, comparing within the result set: "Fastest option under your arrive-by constraint. One more stop than the cheapest, but lands 6 hours earlier." If the engine didn't compute it, the explanation can't say it (principle #2).
 
-### 6. Parser fixture set
+### 6. Parser fixture corpus
 
-A committed set of 20 to 25 test utterances with expected parsed outputs: happy path, lazy phrasing, typos, relative dates, refinements against existing state, and hostile input designed to break it. The parser is the product's core surface, so its accuracy is a product requirement. Refinement utterances (parse-against-state) are first-class fixtures, not an afterthought.
+A committed core corpus plus a strict challenge tier, all with expected parsed outputs: happy path, lazy phrasing, typos, relative dates, refinements against existing state, hostile input, and compositional or fragmentary language designed to break it. Challenge cases cover risks such as inferring a party size from named people without turning those names into route fields. The parser is the product's core surface, so its accuracy is a product requirement. Refinement utterances (parse-against-state) are first-class fixtures, not an afterthought.
 
 ## Explicitly out of scope (MVP)
 
@@ -78,7 +78,7 @@ Also out:
 - Real flight availability (simulated, with realistic shape: scarce premium cabins, variable pricing)
 - Round-trip and multi-city (one-way only, mirroring real MVP sequencing)
 - Accounts, auth, saved searches, alerts
-- Full eval harness with accuracy reporting (phase 2, built on the fixture set)
+- Hosted eval dashboards and longitudinal reporting (phase 2, built on the fixture corpus)
 - Hotels, cars, anything that isn't a flight
 - Mobile-native anything (responsive web only)
 
@@ -100,11 +100,11 @@ If a feature doesn't make these 60 seconds better, it waits.
 - Lazy query to first streamed result in under 3 seconds.
 - The three-utterance refinement journey works flawlessly: every chip change is visible, every re-rank is legible.
 - The parser passes the full fixture set, including refinement-against-state cases, and degrades gracefully (assumption or single follow-up) on the ones built to break it.
-- Zero numbers on screen are LLM-generated. Checkable, and checked.
+- Zero result numbers or prose claims are LLM-generated; every parsed chip value is traceable to the user's words and visible for correction. Checkable, and checked.
 
 ## Open questions
 
 - Whether the simulated inventory should eventually link to a real availability provider. Current answer: not until the labeled fiction can be replaced end to end.
 - Whether refinement input is the same box as initial search or a docked follow-up bar. Current lean: same box, it reinforces "one way in."
 - Tone of "why this result" copy: expert-friend vs neutral-tool. Current lean: expert-friend.
-- Phase 2 ordering: points-intelligence layer vs eval harness first. Genuinely undecided, and a good conversation to have with people who know the points data cold.
+- Phase 2 ordering: points-intelligence layer vs hosted eval dashboards and longitudinal reporting first. Genuinely undecided, and a good conversation to have with people who know the points data cold.

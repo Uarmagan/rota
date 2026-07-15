@@ -136,7 +136,7 @@ object and open the search as soon as destination + dates validate.
 | PRD principle | Enforcement point |
 |---|---|
 | 1. The AI never silently decides | Every interpretable field in `schema` is `.nullable()`; origin carries `assumed: boolean`. The parser never fills a gap: `engine/normalize.ts` owns assumption-filling and `engine/gaps.ts` owns the follow-up policy, both as pure, tested logic. Chips render only from TripIntent, so nothing that was decided can stay invisible. |
-| 2. The AI interprets, the engine computes | LLM calls exist in exactly two modules — `parser` (words → TripIntent, Zod-gated, then deterministically canonicalized) and `prose` (ExplanationFacts → copy) — enforced by the repo-wide allowlist guard. `prose` output passes a number-provenance guard: every digit sequence and spelled-out number word in the copy must correspond to a value in the input facts, else the copy is rejected and a deterministic fallback template renders. The guard enforces provenance (no number can originate from the LLM), not claim-binding; binding correctness comes from keeping ExplanationFacts minimal and per-result. |
+| 2. The AI interprets, the engine computes | LLM calls exist in exactly two modules — `parser` (user words → visible TripIntent values, Zod-gated, then deterministically canonicalized) and `prose` (ExplanationFacts → copy) — enforced by the repo-wide allowlist guard. A parser value such as Travelers: 3 may be a traceable interpretation of three named people; it is not a generated availability fact. Every price, duration, rank, comparison, and other result number is deterministic. `prose` output passes a number-provenance guard: every digit sequence and spelled-out number word in the copy must correspond to a value in the input facts, else the copy is rejected and a deterministic fallback template renders. |
 | 3. Conversation edits state, not history | The parser signature `(currentIntent, utterance) => ParseResult` is the whole memory model — there is no chat log anywhere in the system, and `unhandled` is transient beside the intent. Full-state re-emission means unmentioned fields are preserved by instruction and **asserted by the fixture suite** (deep equality on the complete intent, made fair by canonicalization). IntentDiff is computed by `engine/diff.ts` over normalized states, never emitted by the model. |
 | 4. Speed should feel alive | Sequential pipeline with an explicit latency budget (above). `availability` is interface-first with per-source latency simulation streamed over a real ReadableStream. Ranking is incremental and stable in `engine/rank.ts` so re-ranks are legible, not jumpy. |
 
@@ -200,8 +200,11 @@ the feedback-retry path.
   parser stage (origin stays null on a first query); the fill is engine-tested
   separately. `pnpm eval` runs five live reps per fixture and reports retry rate,
   p50/p95 latency, and soft wording matches. Correctness requires at least 4/5 reps, or
-  5/5 for hostile fixtures. The networked eval spends money and never runs in CI;
-  fixture self-consistency remains model-independent.
+  5/5 for hostile fixtures. The challenge tier (`pnpm eval -- --challenge`) rejects
+  runs below five reps, requires every rep to pass, and hard-grades the complete
+  normalized expected unhandled phrase; failed reps print their exact intent, diff, or
+  unhandled mismatch. The networked eval spends money and never runs in CI; fixture
+  self-consistency remains model-independent.
 - `availability`: seeded simulation, deterministic assertions on batch ordering and
   latency shape.
 - `prose`: deterministic renderer and guard tests plus offline adapter tests. Several

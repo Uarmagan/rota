@@ -5,7 +5,7 @@ export default defineConfig({
     postcss: { plugins: [] },
   },
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
     environment: 'node',
   },
 })

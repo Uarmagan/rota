@@ -10,10 +10,13 @@ items from Open decisions into the schema/PRD and note the choice inline.
   schema is considered frozen for MVP (D1 `priority`, D2 `ParseResult`/`unhandled` +
   `GapOutcome`, D3 single-airport registry, D4 defaults, D5 exploratory follow-up).
   Typecheck + 70 tests green.
-- **Done:** M1 parser (2026-07-10): parser seam, retry policy, direct `@ai-sdk/openai`
-  with default `gpt-5.6-luna`, few-shot prompt, 25 fixtures, `pnpm eval`. Live eval
-  passed 25/25 fixtures (125/125 reps, 0 retries, ~1.05s p50) after one eval-driven
-  policy flip (`next <weekday>`, below).
+- **Done:** M1 parser (2026-07-10; challenge hardening 2026-07-14): parser seam,
+  retry policy, direct `@ai-sdk/openai` with default `gpt-5.6-luna`, few-shot prompt,
+  and `pnpm eval`. The corpus now has 38 fixtures (28 core, 10 strict challenge).
+  The original live eval passed 25/25 fixtures (125/125 reps, 0 retries, ~1.05s p50);
+  the post-hardening full corpus passed 38/38 (190/190 reps, 0 retries,
+  0.96–1.22s per-fixture p50) after eval-driven grammar-vs-place, representable-clue,
+  and correction-policy fixes.
 - **Done:** M2 deterministic engine (2026-07-10): filtering, ranking, pricing,
   explanation facts, local-clock helpers, and visible defaults. All 54 focused engine
   tests pass.
@@ -93,8 +96,9 @@ The LLM boundary for words → TripIntent.
       canonicalization remains the next engine pipeline step
 - [x] Live-model eval script running the fixture suite (`pnpm eval`), reusing the
       fixture assertions
-- [x] Expand fixtures to the PRD's 20–25: typos, relative dates ("next friday"),
-      more refinement-against-state, contradiction, more hostile
+- [x] Maintain a core fixture corpus plus strict challenge cases: typos, relative
+      dates, refinement-against-state, contradiction, hostile input, named-party
+      inference, fragments, and compositional corrections
 - **Done when:** eval passes the full fixture set against the default model, and the
   self-consistency suite still passes without network.
 
@@ -103,7 +107,9 @@ The LLM boundary for words → TripIntent.
 - Parser returns raw, pre-canonicalization `ParseResult` and never imports engine.
 - One feedback retry covers validation and membership; the SDK owns transport retry.
 - OpenAI is called directly; default model is `gpt-5.6-luna` at lowest reasoning.
-- Prompt uses four held-out examples disjoint from the fixture utterances.
+- Prompt uses four full input/output examples disjoint from the fixture utterances;
+  concise inline policy illustrations may clarify semantics but stay disjoint from
+  strict challenge cases.
 - The model resolves relative dates; Zod refinements remain the hard date gate.
 - Eval runs five reps; hostile fixtures require 5/5 and all others at least 4/5.
 - Unsupported cities become `unhandled` with a null place, never a fabricated IATA.
@@ -219,6 +225,8 @@ The deterministic core over flight data. Pure TS, no mocks.
 
 ## M7 — Demo hardening
 
+- [x] Add a strict 10-case parser challenge tier for named-party inference, noisy
+      fragments, self-correction, explicit waivers, and unsupported place qualifiers
 - [ ] Walk the demo path against the success criteria: first result <3s, three-utterance
       refinement journey, zero LLM numbers (guard verified in an e2e pass)
 - [ ] Graceful degradation pass on hostile fixtures through the real UI
@@ -227,5 +235,5 @@ The deterministic core over flight data. Pure TS, no mocks.
 
 ## Explicitly parked (phase 2, per PRD)
 
-Points-intelligence layer, real availability, round-trip/multi-city, accounts, full
-eval-harness reporting, hotels/cars, mobile-native.
+Points-intelligence layer, real availability, round-trip/multi-city, accounts, hosted
+eval dashboards and longitudinal reporting, hotels/cars, mobile-native.

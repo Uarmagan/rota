@@ -252,12 +252,17 @@ claim-binding. The allowed set includes deterministic display decompositions suc
 hours/minutes and 12-hour clock values, so recognizing an engine number in copywriter
 form is not the model originating one.
 
-> **Defend this invariant.** "No number a user sees originates from the model" is the
+Intent chips are a separate interpretation boundary: the parser may translate
+user-provided trip meaning into structured values such as dates, times, and party size.
+Those values must be traceable to the utterance or pinned parser context and remain
+visible for correction; they are not generated availability or result facts.
+
+> **Defend this invariant.** "No result number a user sees originates from the model" is the
 > load-bearing promise of the whole architecture — it's what separates Rota from a
 > chatbot with a form stapled on. It degrades quietly: the first feature that lets the
 > model phrase an unverified figure ("about 40% cheaper", "usually 2 stops") reads as
 > harmless copy but collapses the guarantee for everything. Any new number in
-> user-facing output must trace to an engine-computed fact; if the engine didn't
+> result or prose output must trace to an engine-computed fact; if the engine didn't
 > compute it, the prose can't say it — add the computation to the engine, don't relax
 > the guard. Mirrors the CLAUDE.md invariant; keep them in lockstep.
 >
