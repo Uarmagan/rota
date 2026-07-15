@@ -120,6 +120,15 @@ alongside the destination [[Prompt chip]] (see [[Destination theme]]) rather tha
 deferred invisibly — the line acknowledges, the chip asks.
 _Avoid_: warning, follow-up (it asks nothing)
 
+**Origin geolocation**:
+The source of the origin [[Assumption]]'s candidate: the visitor's approximate,
+IP-derived location supplied by the hosting platform, snapped to the nearest supported
+city and resolved to that city's primary airport. Computed per request, never stored,
+never a permission prompt; Chicago is the fallback when no location arrives. The
+engine still creates the assumption — geolocation only nominates the candidate. See
+docs/adr/0010.
+_Avoid_: GPS, precise location, browser geolocation, tracking
+
 **Country resolution**:
 Mapping a stated country ("Japan") to its primary city (Tokyo) via the explicit
 country table in the place registry — a curated product judgment, versioned with the
@@ -359,7 +368,9 @@ _Avoid_: demo budget, outage
 **Anonymous visit**:
 One visit to the public demo measured through privacy-friendly basic traffic analytics.
 Rota does not link it to an identity or custom interaction history and does not store
-raw utterances. Natural-language utterances are transmitted to the model provider for
+raw utterances. The hosting platform's IP-derived approximate location is used
+in-request to prefill the origin chip ([[Origin geolocation]]) and is not stored.
+Natural-language utterances are transmitted to the model provider for
 interpretation and may be retained under its API data policy. The hosting and analytics
 provider may process network, device, location, and request metadata under its own
 privacy notice. Its Hobby analytics dashboard has a one-month reporting window, but
@@ -367,9 +378,9 @@ the provider may retain analytics data for longer.
 _Avoid_: anonymous session, person, user profile, recording
 
 **Quiet privacy notice**:
-A non-interrupting footer link that explains model-provider processing and the public
-demo's basic traffic analytics. It is disclosure, not a banner, toast, consent prompt,
-or message in the demo flow.
+A non-interrupting footer link that explains model-provider processing, the public
+demo's basic traffic analytics, and the IP-derived origin prefill. It is disclosure,
+not a banner, toast, consent prompt, or message in the demo flow.
 _Avoid_: analytics banner, tracking prompt
 
 **Quiet simulation disclaimer**:
