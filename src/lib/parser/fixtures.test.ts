@@ -123,15 +123,13 @@ describe.each(parserEvaluationCases.map((f) => [f.name, f] as const))(
       const outcome = checkGaps(fixture.expected, fixture.expectedUnhandled)
       if (!fixture.expected.destination) {
         // Missing destination blocks and is adjudicated first. When a clause also went
-        // unhandled, the follow-up absorbs it — its question echoes the clause rather
-        // than deferring it invisibly (D5).
-        expect(outcome).toMatchObject({
+        // unhandled, the follow-up carries it — the echo renders beside the destination
+        // prompt chip rather than being deferred invisibly (D5).
+        expect(outcome).toEqual({
           kind: 'follow_up',
           reason: 'missing_destination',
+          unhandled: fixture.expectedUnhandled,
         })
-        if (fixture.expectedUnhandled !== null && outcome.kind === 'follow_up') {
-          expect(outcome.question).toContain(fixture.expectedUnhandled)
-        }
       } else if (fixture.expectedUnhandled !== null) {
         expect(outcome).toEqual({
           kind: 'ready_with_notice',

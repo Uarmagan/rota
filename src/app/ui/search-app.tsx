@@ -26,7 +26,7 @@ import {
   isDemoApiErrorCode,
   type DemoApiErrorCode,
 } from '../../lib/server/demo-api-errors'
-import { ChipsRow, PromptChip, type ChipAnimation } from './chips'
+import { ChipsRow, type ChipAnimation, type ChipAnimationKind } from './chips'
 import { Results } from './results'
 import { searchStream } from './stream'
 
@@ -57,6 +57,19 @@ interface WhyLine {
   text: string
 }
 
+const CHIP_STAGGER_MS = 85
+const MAX_STAGGER_STEPS = 6 // cap so a many-field first parse never drags
+const FIRST_WAVE_SETTLE_MS = 700 // opening cascade: 30ms × ~15 rows + 250ms entrance
+const WAVE_SETTLE_MS = 600 // covers the FLIP glide and a crown handoff (280 + 300) + a beat
+
+// jsdom has no matchMedia; treat that as reduced motion, like results.tsx does.
+function motionOk(): boolean {
+  return (
+    typeof window.matchMedia === 'function' &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+}
+
 export function SearchApp() {
   const [intent, setIntent] = useState<TripIntent | null>(null)
   const [gap, setGap] = useState<GapOutcome | null>(null)
@@ -70,6 +83,7 @@ export function SearchApp() {
   const [why, setWhy] = useState<WhyLine | null>(null)
   const [error, setError] = useState<AppError | null>(null)
   const [text, setText] = useState('')
+  const [sendOff, setSendOff] = useState<string | null>(null)
   const parseAbortRef = useRef<AbortController | null>(null)
   const parseRun = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
@@ -87,11 +101,16 @@ export function SearchApp() {
     const diff = computeIntentDiff(previous, next)
     setIntent(next)
     setGap(nextGap)
+    const changed = diff.filter((change) => change.kind !== 'cleared')
     setAnimations(
       new Map(
-        diff
-          .filter((change) => change.kind !== 'cleared')
-          .map((change) => [change.field, change.kind as ChipAnimation]),
+        changed.map((change, index) => [
+          change.field,
+          {
+            kind: change.kind as ChipAnimationKind,
+            delayMs: Math.min(index, MAX_STAGGER_STEPS - 1) * CHIP_STAGGER_MS,
+          },
+        ]),
       ),
     )
     setRunId((r) => r + 1)
@@ -119,6 +138,7 @@ export function SearchApp() {
     const utterance = text.trim()
     if (utterance === '' || parsing) return
     setText('') // the utterance becomes chips; a failed parse restores it
+    if (motionOk()) setSendOff(utterance)
     setParsing(true)
     setError(null)
     const current = intent ?? createEmptyTripIntent()
@@ -130,6 +150,7 @@ export function SearchApp() {
     if (result === null || parseRun.current !== run || controller.signal.aborted) return
     setParsing(false)
     if (!result.ok) {
+      setSendOff(null)
       setError(result.error)
       setText(utterance)
       return
@@ -154,13 +175,59 @@ export function SearchApp() {
     setStreaming(true)
 
     const collected: SourceBatch[] = []
-    try {
-      for await (const batch of searchStream(searchIntent, controller.signal)) {
-        if (searchRun.current !== run) return
-        collected.push(batch)
-        setBatches([...collected])
+    const pending: SourceBatch[] = []
+    let waveEndsAt = 0
+    let firstWave = true
+    const commitWave = () => {
+      collected.push(...pending)
+      pending.length = 0
+      setBatches([...collected])
+      waveEndsAt = Date.now() + (firstWave ? FIRST_WAVE_SETTLE_MS : WAVE_SETTLE_MS)
+      firstWave = false
+    }
+    // Resolves once the playing wave has settled; false if this run went stale.
+    const waveSettled = async () => {
+      if (motionOk()) {
+        const wait = waveEndsAt - Date.now()
+        if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
       }
-      if (searchRun.current !== run) return
+      return searchRun.current === run && !controller.signal.aborted
+    }
+    try {
+      const stream = searchStream(searchIntent, controller.signal)[Symbol.asyncIterator]()
+      let nextBatch: Promise<IteratorResult<SourceBatch>> | null = null
+      while (true) {
+        nextBatch ??= stream.next()
+        // While a wave is playing, race the stream against its settle time so
+        // batches arriving mid-wave merge into the next wave.
+        const { result } =
+          pending.length > 0
+            ? await Promise.race([
+                nextBatch.then((r) => ({ result: r as IteratorResult<SourceBatch> | null })),
+                new Promise<{ result: null }>((resolve) =>
+                  setTimeout(
+                    () => resolve({ result: null }),
+                    Math.max(0, waveEndsAt - Date.now()),
+                  ),
+                ),
+              ])
+            : { result: await nextBatch }
+        if (searchRun.current !== run || controller.signal.aborted) return
+        if (result === null) {
+          commitWave()
+          continue
+        }
+        nextBatch = null
+        if (result.done) break
+        pending.push(result.value)
+        if (!motionOk() || Date.now() >= waveEndsAt) commitWave()
+      }
+      if (pending.length > 0) {
+        if (!(await waveSettled())) return
+        commitWave()
+      }
+      // The settle beat (verdict bloom) waits for the last wave to finish.
+      if (!(await waveSettled())) return
       setStreaming(false)
       void fetchWhy(searchIntent, collected, run)
     } catch {
@@ -226,23 +293,27 @@ export function SearchApp() {
 
   return (
     <div className="min-h-screen bg-[#0b0b0f] text-neutral-200 antialiased">
-      <div
+      <main
         className={`mx-auto flex w-full max-w-2xl flex-col px-6 ${
           hasIntent ? 'pt-14 pb-32' : 'min-h-screen justify-center pb-40'
         }`}
       >
+        <h1
+          className={
+            hasIntent
+              ? 'sr-only'
+              : 'mb-2 text-center text-sm font-normal tracking-[0.35em] text-neutral-400 uppercase'
+          }
+        >
+          Rota
+        </h1>
         {!hasIntent && (
-          <>
-            <p className="mb-2 text-center text-sm tracking-[0.35em] text-neutral-600 uppercase">
-              Rota
-            </p>
-            <p className="mb-6 text-center text-xs text-neutral-600">
-              Describe what you need in your own words.
-            </p>
-          </>
+          <p className="mb-6 text-center text-xs text-muted-foreground">
+            Describe what you need in your own words.
+          </p>
         )}
 
-        <div className="rounded-xl border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
+        <div className="rounded-xl border border-white/10 bg-white/[0.04] transition-colors focus-within:border-indigo-300/40">
           {intent !== null && (
             <ChipsRow
               intent={intent}
@@ -252,22 +323,11 @@ export function SearchApp() {
             />
           )}
 
-          {intent !== null && (intent.destination === null || intent.dates === null) && (
-            <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-3 py-2.5">
-              {intent.destination === null && <PromptChip label="Where to?" />}
-              {intent.destination !== null && intent.dates === null && (
-                <PromptChip label="When?" />
-              )}
-              <span className="text-xs text-neutral-500">
-                {gap?.kind === 'follow_up'
-                  ? gap.question
-                  : 'Add dates to search. Try “in february”.'}
-              </span>
-            </div>
-          )}
-
-          {gap?.kind === 'ready_with_notice' && (
-            <p className="border-b border-white/[0.06] px-4 py-2 text-xs text-neutral-500">
+          {/* The one echo surface: the parser's unhandled clause, quoted back beside
+              whichever state it landed in. When destination is also missing, this line
+              acknowledges while the prompt chip in the row asks (ADR 0005). */}
+          {gap !== null && gap.kind !== 'ready' && gap.unhandled !== null && (
+            <p className="border-b border-white/[0.06] px-4 py-2 text-xs text-muted-foreground">
               Couldn&rsquo;t use: &ldquo;{gap.unhandled}&rdquo;
             </p>
           )}
@@ -279,23 +339,39 @@ export function SearchApp() {
               void submit()
             }}
           >
-            <span className="text-lg text-indigo-300/80 select-none">›</span>
-            <input
-              autoFocus
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder={
-                hasIntent
-                  ? 'refine: “actually business class, nonstop if possible”'
-                  : 'describe your trip: “tokyo in feb for 2”'
-              }
-              className="w-full bg-transparent py-3.5 text-[15px] text-neutral-100 placeholder-neutral-600 outline-none"
-            />
-            {parsing && <span className="text-xs text-neutral-500">parsing…</span>}
+            <span className="relative min-w-0 flex-1">
+              <input
+                autoFocus
+                aria-label="Describe your trip"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder={
+                  intent === null || intent.destination === null
+                    ? 'Where to? Try “Tokyo in February for two”'
+                    : intent.dates === null
+                      ? 'When works? Try “in February”'
+                      : 'Anything else? Try “business class, nonstop if possible”'
+                }
+                className="w-full bg-transparent py-3.5 text-[15px] text-neutral-100 placeholder-muted-foreground outline-none"
+              />
+              {sendOff !== null && (
+                <span
+                  aria-hidden
+                  onAnimationEnd={() => setSendOff(null)}
+                  className="rota-send-off pointer-events-none absolute inset-0 flex items-center truncate text-[15px] text-neutral-100 select-none"
+                >
+                  {sendOff}
+                </span>
+              )}
+            </span>
           </form>
 
           {parsing && (
-            <div className="rota-progress mx-4 mb-2 h-0.5 rounded-full bg-white/[0.06]" />
+            <div
+              role="status"
+              aria-label="Reading your request"
+              className="rota-progress mx-4 mb-2 h-0.5 rounded-full bg-white/[0.06]"
+            />
           )}
         </div>
 
@@ -320,7 +396,7 @@ export function SearchApp() {
         )}
 
         {showResults && filtered.length === 0 && options.length > 0 && !streaming && (
-          <p className="mt-6 text-sm text-neutral-500">
+          <p className="mt-6 text-sm text-muted-foreground">
             All {options.length} options are hidden by your filters. Try
             relaxing one.
           </p>
@@ -330,7 +406,9 @@ export function SearchApp() {
           <Results
             options={ranked.map(({ option }) => option)}
             travelers={intent.travelers ?? 1}
-            bestId={best?.id ?? null}
+            // The crown waits for the stream: mid-stream batches re-rank and
+            // would bounce the badge between rows before the field is complete.
+            bestId={streaming ? null : (best?.id ?? null)}
             why={why}
             streaming={streaming}
             sourcesDone={sourcesDone}
@@ -338,7 +416,7 @@ export function SearchApp() {
             hidden={options.length - filtered.length}
           />
         )}
-      </div>
+      </main>
     </div>
   )
 }

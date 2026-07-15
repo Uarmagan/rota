@@ -5,6 +5,7 @@
 // re-sorts the ranking — the re-rank must be legible, not jumpy.
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { computePartyPrice } from '../../lib/engine/pricing'
 import type { FlightOption } from '../../lib/engine/types'
 import {
@@ -84,28 +85,9 @@ export function Results({
     }, EXPAND_MS)
   }
 
-  const registerRow = useFlip(options.map((option) => option.id).join('|'))
-  const enterDelays = useRef(new Map<string, number>())
-
-  const fresh = options.filter((option) => !enterDelays.current.has(option.id))
-  if (options.length === 0) enterDelays.current.clear()
-  fresh.forEach((option, index) =>
-    enterDelays.current.set(option.id, Math.min(index * 40, 240)),
-  )
-
-  // The crown lands with its row: on a mid-stream handoff, delay the badge
-  // pop by the FLIP glide so the winner is crowned on arrival.
-  const crown = useRef<{ id: string | null; delayMs: number }>({
-    id: null,
-    delayMs: 0,
-  })
-  if (options.length === 0) crown.current = { id: null, delayMs: 0 }
-  if (bestId !== crown.current.id) {
-    crown.current = {
-      id: bestId,
-      delayMs: crown.current.id !== null && motionOk() ? FLIP_MS : 0,
-    }
-  }
+  const orderKey = options.map((option) => option.id).join('|')
+  const registerRow = useFlip(orderKey)
+  const animation = useAnimationBookkeeping(options, bestId, streaming)
 
   useEffect(() => {
     if (expandedId !== null && !options.some((option) => option.id === expandedId)) {
@@ -115,19 +97,16 @@ export function Results({
 
   return (
     <div className="mt-7">
-      <header className="mb-2 flex items-baseline justify-between text-[11px] text-neutral-500">
+      <header className="mb-2 flex items-baseline justify-between text-[11px] text-muted-foreground">
         <span>
           {options.length === 0 && streaming
             ? 'searching…'
             : `${options.length} option${options.length === 1 ? '' : 's'}`}
           {hidden > 0 && (
-            <span className="text-neutral-600">
-              {' '}
-              · {hidden} hidden by your filters
-            </span>
+            <span> · {hidden} hidden by your filters</span>
           )}
         </span>
-        <span className={streaming ? 'text-indigo-300/70' : 'text-neutral-600'}>
+        <span className={streaming ? 'text-indigo-300/80' : ''}>
           {sourcesDone}/{sourcesTotal} sources
         </span>
       </header>
@@ -139,8 +118,9 @@ export function Results({
           option={option}
           travelers={travelers}
           isBest={bestId === option.id}
-          enterDelayMs={enterDelays.current.get(option.id) ?? 0}
-          badgeDelayMs={crown.current.delayMs}
+          enterDelayMs={animation.enterDelays.get(option.id) ?? 0}
+          badgeDelayMs={animation.crownDelayMs}
+          verdict={animation.verdictId === option.id}
           expanded={expandedId === option.id}
           onToggle={() => toggleExpanded(option.id)}
           whyLine={
@@ -160,7 +140,10 @@ export function Results({
               <div className="rota-shimmer h-14 rounded-md" />
             </>
           ) : (
-            <div className="rota-shimmer h-14 rounded-md" />
+            <div
+              ref={registerRow('__shimmer')}
+              className="rota-shimmer h-14 rounded-md"
+            />
           )}
         </div>
       )}
@@ -170,6 +153,113 @@ export function Results({
       )}
     </div>
   )
+}
+
+interface AnimationBookkeeping {
+  enterDelays: ReadonlyMap<string, number>
+  crownId: string | null
+  crownDelayMs: number
+  streamed: boolean
+  verdictId: string | null
+}
+
+const EMPTY_ANIMATION_BOOKKEEPING: AnimationBookkeeping = {
+  enterDelays: new Map(),
+  crownId: null,
+  crownDelayMs: 0,
+  streamed: false,
+  verdictId: null,
+}
+
+function useAnimationBookkeeping(
+  options: readonly FlightOption[],
+  bestId: string | null,
+  streaming: boolean,
+): AnimationBookkeeping {
+  const [committed, setCommitted] = useState(EMPTY_ANIMATION_BOOKKEEPING)
+  const next = deriveAnimationBookkeeping(
+    committed,
+    options.map((option) => option.id),
+    bestId,
+    streaming,
+    motionOk(),
+  )
+
+  useLayoutEffect(() => {
+    setCommitted((current) =>
+      animationBookkeepingEqual(current, next) ? current : next,
+    )
+  }, [next])
+
+  return next
+}
+
+function deriveAnimationBookkeeping(
+  committed: AnimationBookkeeping,
+  optionIds: readonly string[],
+  bestId: string | null,
+  streaming: boolean,
+  animated: boolean,
+): AnimationBookkeeping {
+  if (optionIds.length === 0) {
+    return {
+      ...EMPTY_ANIMATION_BOOKKEEPING,
+      enterDelays: new Map(),
+      streamed: streaming,
+    }
+  }
+
+  const enterDelays = new Map(committed.enterDelays)
+  const firstPaint = enterDelays.size === 0
+  optionIds.forEach((id, index) => {
+    if (!enterDelays.has(id)) {
+      enterDelays.set(id, animated && firstPaint ? Math.min(index * 30, 600) : 0)
+    }
+  })
+
+  const crownChanged = bestId !== committed.crownId
+  const crownDelayMs = animated
+    ? crownChanged && committed.crownId !== null
+      ? FLIP_MS
+      : committed.crownDelayMs
+    : 0
+
+  let streamed = committed.streamed
+  let verdictId = committed.verdictId
+  if (streaming) {
+    streamed = true
+    verdictId = null
+  } else if (committed.streamed && bestId !== null) {
+    streamed = false
+    verdictId = bestId
+  }
+
+  return {
+    enterDelays,
+    crownId: bestId,
+    crownDelayMs,
+    streamed,
+    verdictId,
+  }
+}
+
+function animationBookkeepingEqual(
+  left: AnimationBookkeeping,
+  right: AnimationBookkeeping,
+): boolean {
+  if (
+    left.crownId !== right.crownId ||
+    left.crownDelayMs !== right.crownDelayMs ||
+    left.streamed !== right.streamed ||
+    left.verdictId !== right.verdictId ||
+    left.enterDelays.size !== right.enterDelays.size
+  ) {
+    return false
+  }
+  for (const [id, delay] of left.enterDelays) {
+    if (right.enterDelays.get(id) !== delay) return false
+  }
+  return true
 }
 
 // WAAPI easing can't reference CSS vars; read --ease-in-out-strong once.
@@ -241,6 +331,7 @@ function Row({
   isBest,
   enterDelayMs,
   badgeDelayMs,
+  verdict,
   expanded,
   onToggle,
   whyLine,
@@ -251,6 +342,7 @@ function Row({
   isBest: boolean
   enterDelayMs: number
   badgeDelayMs: number
+  verdict: boolean
   expanded: boolean
   onToggle: () => void
   whyLine: string | null
@@ -262,12 +354,17 @@ function Row({
   return (
     <div
       ref={ref}
-      style={{ animationDelay: `${enterDelayMs}ms` }}
-      className={`rota-row border-b border-white/5 transition-colors hover:bg-white/[0.03] ${
+      style={
+        {
+          animationDelay: `${enterDelayMs}ms`,
+          '--rota-verdict-delay': `${badgeDelayMs}ms`,
+        } as CSSProperties
+      }
+      className={`rota-row relative transition-colors ${
         isBest
-          ? 'border-l-2 border-l-indigo-400 bg-indigo-400/[0.04]'
-          : 'border-l-2 border-l-transparent'
-      }`}
+          ? 'rota-best mb-1.5'
+          : 'border-b border-white/5 hover:bg-white/[0.03]'
+      } ${verdict ? 'rota-verdict' : ''}`}
     >
       <button
         type="button"
@@ -280,10 +377,10 @@ function Row({
           <span className="block text-[15px] font-medium text-neutral-100 tabular-nums">
             {departTime(option)} → {arriveTime(option)}
             {dayOffset > 0 && (
-              <sup className="text-[9px] text-neutral-500">+{dayOffset}</sup>
+              <sup className="text-[9px] text-muted-foreground">+{dayOffset}</sup>
             )}
           </span>
-          <span className="mt-0.5 block text-xs text-neutral-500">
+          <span className="mt-0.5 block text-xs text-muted-foreground">
             {airlineLabel(option)}
           </span>
         </span>
@@ -291,7 +388,7 @@ function Row({
           <span className="block text-xs text-neutral-300">
             {formatDuration(option.totalDurationMinutes)}
           </span>
-          <span className="mt-0.5 block text-xs text-neutral-500">
+          <span className="mt-0.5 block text-xs text-muted-foreground">
             {stopsLabel(option)}
           </span>
         </span>

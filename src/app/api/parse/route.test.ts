@@ -49,7 +49,7 @@ describe('handleParse', () => {
       gap: {
         kind: 'follow_up',
         reason: 'missing_destination',
-        question: 'Where do you want to fly to?',
+        unhandled: null,
       },
     })
   })
@@ -76,8 +76,8 @@ describe('handleParse', () => {
     expect(await response.json()).toMatchObject({
       gap: {
         kind: 'follow_up',
-        question:
-          'I couldn\'t use "somewhere warm", and I still need a destination. Where would you like to fly?',
+        reason: 'missing_destination',
+        unhandled: 'somewhere warm',
       },
     })
   })

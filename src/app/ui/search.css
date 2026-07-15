@@ -5,7 +5,6 @@
 :root {
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes rota-pop {
@@ -41,7 +40,7 @@
 .rota-pop { animation: rota-pop 0.25s var(--ease-out-strong) both; }
 .rota-row { animation: rota-row 0.25s var(--ease-out-strong) both; }
 .rota-flash { animation: rota-flash 0.6s ease-out 1; }
-.rota-badge { animation: rota-badge 0.3s var(--ease-bounce) both; }
+.rota-badge { animation: rota-badge 0.3s var(--ease-out-strong) both; }
 
 .rota-press {
   transition:
@@ -58,6 +57,47 @@
   transition: grid-template-rows 200ms var(--ease-out-strong);
 }
 .rota-fade-in { animation: rota-fade 0.3s var(--ease-out-strong) both; }
+
+/* Best result: a lifted neutral slab, not a colored side-stripe. The accent
+   lives only in the badge and the settle bloom — the resting row stays neutral.
+   The top inset highlight reads as lit-from-above, so the winner sits proud of
+   the flush divider list. */
+.rota-best {
+  border-radius: 10px;
+  background-color: rgba(255, 255, 255, 0.045);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055);
+}
+.rota-best:hover {
+  background-color: rgba(255, 255, 255, 0.065);
+}
+
+/* Verdict: when the search settles, a soft indigo ring blooms around the
+   winner's slab once and fades back to the neutral resting state. */
+@keyframes rota-verdict {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.rota-verdict::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px rgba(165, 180, 252, 0.6),
+    0 0 20px 2px rgba(129, 140, 248, 0.32);
+  animation: rota-verdict 0.7s var(--ease-out-strong)
+    var(--rota-verdict-delay, 0ms) both;
+}
+
+@keyframes rota-send-off {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+.rota-send-off { animation: rota-send-off 0.24s var(--ease-out-strong) both; }
 
 @keyframes rota-fade {
   from { opacity: 0; }
@@ -93,6 +133,10 @@
     transform: none;
     animation: rota-pulse 1s ease-in-out infinite;
   }
+  .rota-verdict::after {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 .rota-shimmer {
@@ -106,6 +150,7 @@
   animation: rota-shimmer 1.4s linear infinite;
 }
 
+/* The parse busy state: a quiet indeterminate sweep along the track. */
 .rota-progress {
   position: relative;
   overflow: hidden;

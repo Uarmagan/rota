@@ -20,6 +20,11 @@ Run with `improve-animations execute <plan>` or hand to any agent.
 | 015 | [Sequence row expand when switching options](015-sequence-expand-swap.md) | MEDIUM | DONE |
 | 016 | [Gate the FLIP to rank-order changes](016-gate-flip-to-reorders.md) | HIGH | DONE |
 | 017 | [Crown the winner when its row lands](017-crown-on-landing.md) | LOW | DONE |
+| 018 | [Words become chips: send-off and staggered crystallize](018-words-become-chips.md) | LOW | DONE |
+| 019 | [Slow the words-become-chips moment very slightly](019-slow-words-slightly.md) | LOW | DONE |
+| 020 | [Verdict sweep: draw the best row's edge on settle](020-verdict-sweep.md) | LOW | DONE |
+| 021 | [Pace the result stream into rhythmic waves](021-pace-the-stream.md) | MEDIUM | DONE (superseded by 022: fixed gap → wave scheduler) |
+| 022 | [Wave scheduler: no wave commits while another plays](022-wave-scheduler.md) | MEDIUM | DONE |
 
 ### Execution order and dependencies
 
@@ -62,6 +67,7 @@ update only its own status row.
 | 025 | [Make airport names first-class parser context](025-parser-airport-aliases.md) | P2 | M | 023 | DONE |
 | 026 | [Add metamorphic parser fixture families](026-metamorphic-parser-families.md) | P2 | M | 023, 025 | DONE |
 | 027 | [Make the roadmap identify M7 as current](027-current-roadmap-status.md) | P3 | S | 026 | DONE |
+| 028 | [Make prompt chips fulfill their one-tap editor contract](028-prompt-chips-open-editors.md) | P1 | M | — | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) |
 REJECTED (with one-line rationale).

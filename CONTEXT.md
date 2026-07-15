@@ -24,6 +24,15 @@ The editable UI rendering of one TripIntent field. Tapping a chip edits the inte
 directly, no parser involved.
 _Avoid_: pill, tag, badge, filter
 
+**Prompt chip**:
+The unfilled rendering of a missing field that blocks search (destination, dates). It
+sits in the chip row in the slot the filled chip will occupy and tapping it opens the
+same editor — an ordinary chip whose value happens to be "not yet". The chip itself IS
+the question; no question sentence renders anywhere. When several fields are missing,
+all their prompt chips show at once but only the first blocker gets emphasis — chips
+are structure, not a wall of questions.
+_Avoid_: placeholder, hint, banner, empty state
+
 **Full-state re-emission**:
 The parser contract: re-emit the COMPLETE TripIntent with every unmentioned field
 preserved. Never a patch.
@@ -50,6 +59,17 @@ diff → gaps → search. Initial search is the empty-current-intent case of the
 Canonicalization plus assumption-filling. Diff, gap policy, and search only ever see
 normalized intents.
 
+**Session restore**:
+The committed TripIntent surviving a same-tab refresh: chips come back (even a partial,
+not-yet-searchable intent) and a searchable intent re-runs its search. Everything
+transient stays gone — draft text, [[Unhandled]] echoes, errors, stream progress — and
+restore never spends a paid model call: no parser, and the why-line waits for the next
+real intent change. An unrestorable stored intent is discarded silently; the failure
+mode is the ordinary blank landing page, never a visible error. Deliberately NOT
+shareable: a link that lands on pre-filled chips would skip the words-become-structure
+experience the product exists to show.
+_Avoid_: saved search, permalink, URL state, session (bare)
+
 ### Ambiguity
 
 **Gap**:
@@ -70,11 +90,12 @@ one of three states: stated, assumed, or defaulted. See docs/adr/0004.
 _Avoid_: silent default (it shows a chip), assumption (a default is unflagged)
 
 **Targeted follow-up**:
-The single deterministic question a high-risk gap earns (missing destination,
-contradictory constraints). Never a wall of questions. Surfaces in the chip row as an
-unfilled, prompting chip (resolved inline via the single input or a registry
-typeahead), never as a chat bubble or modal — there is no chat surface.
-_Avoid_: clarification flow, wizard
+The single deterministic ask a high-risk gap earns (missing destination, contradictory
+constraints). Never a wall of questions. It surfaces as a [[Prompt chip]] in the chip
+row — resolved via the single input or the chip's own editor — never as a chat bubble,
+modal, or composed question sentence. The engine reports the gap; the UI embodies the
+ask.
+_Avoid_: clarification flow, wizard, question copy
 
 **Unhandled**:
 A recognized-but-unsupported clause the parser could not map to any field ("exactly one
@@ -91,8 +112,9 @@ _Avoid_: dropped, ignored, error, leftover
 The non-blocking gap outcome when the intent is searchable but carried an `unhandled`
 clause: the search streams AND the echo line renders. Distinct from a follow-up — it is
 not a question, so "never a wall of questions" still holds. Missing destination is a hard
-blocker and is adjudicated first; when destination is ALSO missing, the follow-up absorbs
-the echo (see [[Destination theme]]) rather than deferring it invisibly.
+blocker and is adjudicated first; when destination is ALSO missing, the echo line renders
+alongside the destination [[Prompt chip]] (see [[Destination theme]]) rather than being
+deferred invisibly — the line acknowledges, the chip asks.
 _Avoid_: warning, follow-up (it asks nothing)
 
 **Destination theme**:

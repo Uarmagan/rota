@@ -83,7 +83,7 @@ describe('SearchApp', () => {
     expect(screen.getByText('NRT · Tokyo')).toBeTruthy()
     expect(screen.getByText('Feb 3, 2027')).toBeTruthy()
     expect(screen.getByText('economy')).toBeTruthy()
-    expect(screen.queryByText('parsing…')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
     await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(1))
     expect(searchIntentFrom(router.requestsFor('/api/search')[0].url)).toEqual(SEARCH_INTENT)
   })
@@ -193,7 +193,7 @@ describe('SearchApp', () => {
     )
 
     await waitFor(() => {
-      expect(screen.queryByText('parsing…')).toBeNull()
+      expect(screen.queryByRole('status')).toBeNull()
     })
     expect(screen.getByText('SFO · San Francisco')).toBeTruthy()
     expect(screen.queryByText('ORD · Chicago')).toBeNull()
@@ -353,7 +353,7 @@ describe('SearchApp', () => {
     expect(input.value).toBe('')
     expect(screen.queryByText('Trouble reaching the parser. Try again in a moment.')).toBeNull()
     expect(screen.getByText('SFO · San Francisco')).toBeTruthy()
-    expect(screen.queryByText('parsing…')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
   })
 
   it('aborts an active parse on unmount', async () => {
@@ -385,12 +385,14 @@ describe('SearchApp', () => {
 
     await submitUtterance('tokyo for 2')
 
-    expect(await screen.findByText('When?')).toBeTruthy()
-    expect(screen.getByText('Add dates to search. Try “in february”.')).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'When?' })).toBeTruthy()
+    expect(
+      screen.getByPlaceholderText('When works? Try “in February”'),
+    ).toBeTruthy()
     expect(router.requestsFor('/api/search')).toHaveLength(0)
   })
 
-  it('renders source batches progressively and moves the best-match badge', async () => {
+  it('renders source batches progressively and crowns the best match only after the stream settles', async () => {
     const router = new FetchRouter()
     const stream = new ControlledSearchResponse()
     router.parse.push(parseResponse(SEARCH_INTENT))
@@ -402,14 +404,21 @@ describe('SearchApp', () => {
     await stream.send(batch('meridian', FIRST_OPTION))
 
     expect(await screen.findByText('08:00 → 11:00')).toBeTruthy()
-    const firstBadge = screen.getByText('★ BEST')
+    expect(screen.queryByText('★ BEST')).toBeNull()
 
     await stream.send(batch('aurora', BETTER_OPTION))
 
     expect(await screen.findByText('09:00 → 10:00')).toBeTruthy()
-    expect(firstBadge.isConnected).toBe(false)
-    expect(screen.getAllByText('★ BEST')).toHaveLength(1)
+    expect(screen.queryByText('★ BEST')).toBeNull()
+
     await stream.finish()
+
+    const badge = await screen.findByText('★ BEST')
+    expect(
+      within(badge.closest('[class*="rota-row"]') as HTMLElement).getByText(
+        '09:00 → 10:00',
+      ),
+    ).toBeTruthy()
   })
 
   it('shows a recovery message when the search stream drops', async () => {

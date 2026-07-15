@@ -48,9 +48,14 @@ import {
 } from '../../lib/schema/trip-intent'
 import { chipsFromIntent, type ChipView } from './format'
 
-export type ChipAnimation = 'set' | 'changed'
+export type ChipAnimationKind = 'set' | 'changed'
 
-const CHIP_BASE = 'inline-flex items-baseline gap-1.5 rounded-md border px-2 py-1 text-xs'
+export interface ChipAnimation {
+  kind: ChipAnimationKind
+  delayMs: number
+}
+
+const CHIP_BASE = 'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs'
 const CHIP_TRIGGER_INTERACTION =
   'rota-press cursor-pointer hover:border-white/25 focus-visible:border-indigo-300/70 focus-visible:ring-2 focus-visible:ring-indigo-300/30'
 
@@ -148,6 +153,50 @@ const SIMPLE_FIELD_DEFINITIONS: Record<SimpleField, SimpleFieldDefinition> = {
   },
 }
 
+// A prompt chip is an ordinary chip whose value happens to be "not yet": it sits in
+// the slot the filled chip will occupy and opens the same editor. The chip itself is
+// the targeted follow-up — no question sentence renders anywhere. Only the first
+// blocker (destination before dates) gets the emphasized treatment; emphasis is
+// static, never looping motion.
+export interface RowChipView extends ChipView {
+  unfilled?: boolean
+  emphasized?: boolean
+}
+
+const PROMPT_LABELS: Partial<Record<IntentField, string>> = {
+  destination: 'Where to?',
+  dates: 'When?',
+}
+
+function withPromptChips(intent: TripIntent): RowChipView[] {
+  const chips: RowChipView[] = [...chipsFromIntent(intent)]
+  const insertAfter = (field: IntentField, chip: RowChipView) => {
+    const at = chips.findIndex((c) => c.field === field) + 1
+    chips.splice(at, 0, chip)
+  }
+  if (intent.destination === null) {
+    insertAfter('origin', {
+      field: 'destination',
+      label: 'To',
+      value: '',
+      assumed: false,
+      unfilled: true,
+      emphasized: true,
+    })
+  }
+  if (intent.dates === null) {
+    insertAfter('destination', {
+      field: 'dates',
+      label: 'Dates',
+      value: '',
+      assumed: false,
+      unfilled: true,
+      emphasized: intent.destination !== null,
+    })
+  }
+  return chips
+}
+
 export function ChipsRow({
   intent,
   animations,
@@ -160,7 +209,7 @@ export function ChipsRow({
   onEdit: (edit: IntentEdit) => void
 }) {
   const [openField, setOpenField] = useState<IntentField | null>(null)
-  const chips = chipsFromIntent(intent)
+  const chips = withPromptChips(intent)
 
   const emit = (edit: IntentEdit) => {
     onEdit(edit)
@@ -243,7 +292,7 @@ function DateChip({
   onOpenChange,
   onEdit,
 }: {
-  chip: ChipView
+  chip: RowChipView
   current: DateWindow | null
   open: boolean
   animation: ChipAnimation | undefined
@@ -263,7 +312,12 @@ function DateChip({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange} showSwipeHandle>
-        <DrawerTrigger className={triggerClass}>{trigger}</DrawerTrigger>
+        <DrawerTrigger
+          style={animationStyle(animation)}
+          className={triggerClass}
+        >
+          {trigger}
+        </DrawerTrigger>
         <DrawerContent aria-label="Edit Dates" className="dark border-white/10 bg-[#17171f]">
           <DrawerHeader className="text-left">
             <DrawerTitle>Edit Dates</DrawerTitle>
@@ -279,13 +333,18 @@ function DateChip({
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger className={triggerClass}>{trigger}</PopoverTrigger>
+      <PopoverTrigger
+        style={animationStyle(animation)}
+        className={triggerClass}
+      >
+        {trigger}
+      </PopoverTrigger>
       <PopoverContent
         role="dialog"
         aria-label="Edit Dates"
         align="start"
         sideOffset={6}
-        className="dark w-auto gap-3 rounded-xl border border-white/10 bg-[#17171f] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.62)]"
+        className="dark w-72 gap-3 rounded-xl border border-white/10 bg-[#17171f] p-3 shadow-lg"
       >
         <DateEditorContent current={current} onEdit={onEdit} />
       </PopoverContent>
@@ -301,6 +360,8 @@ function DateEditorContent({
   onEdit: (edit: IntentEdit) => void
 }) {
   const [mode, setMode] = useState<'exact' | 'flexible'>(current?.flexibility ?? 'exact')
+  // One selection survives mode toggles: exact is the earliest = latest case of the
+  // same window, so switching modes never discards a picked day.
   const [range, setRange] = useState<DateRange | undefined>(() =>
     current === null
       ? undefined
@@ -309,14 +370,20 @@ function DateEditorContent({
           to: dateFromKey(current.latest),
         },
   )
-  const exactDate = current === null ? undefined : dateFromKey(current.earliest)
-  const defaultMonth = range?.from ?? exactDate
+  const [month, setMonth] = useState<Date | undefined>(() => range?.from)
 
   const changeMode = (values: readonly string[]) => {
     const next = values[0]
     if (next !== 'exact' && next !== 'flexible') return
     setMode(next)
-    if (next === 'flexible') setRange(undefined)
+    // A single picked day becomes the range start, awaiting an end date.
+    if (next === 'flexible') {
+      setRange((prev) =>
+        prev?.from !== undefined && prev.to?.getTime() === prev.from.getTime()
+          ? { from: prev.from, to: undefined }
+          : prev,
+      )
+    }
   }
 
   return (
@@ -354,13 +421,18 @@ function DateEditorContent({
         </ToggleGroup>
       </div>
 
+      {/* fixedWeeks pins every month to 6 rows so the exact/flexible toggle and
+          month navigation never change the editor's height. */}
       {mode === 'exact' ? (
         <Calendar
           mode="single"
-          defaultMonth={defaultMonth}
-          selected={exactDate}
+          fixedWeeks
+          month={month}
+          onMonthChange={setMonth}
+          selected={range?.from}
           onDayClick={(date) => {
             const key = dateKey(date)
+            setRange({ from: date, to: date })
             onEdit({
               field: 'dates',
               value: { earliest: key, latest: key, flexibility: 'exact' },
@@ -372,7 +444,9 @@ function DateEditorContent({
         <Calendar
           mode="range"
           min={1}
-          defaultMonth={defaultMonth}
+          fixedWeeks
+          month={month}
+          onMonthChange={setMonth}
           selected={range}
           onSelect={(nextRange) => {
             setRange(nextRange)
@@ -396,7 +470,9 @@ function DateEditorContent({
           variant="ghost"
           size="sm"
           onClick={() => onEdit({ field: 'dates', value: null })}
-          className="text-neutral-500 hover:bg-white/[0.06] hover:text-neutral-200"
+          className={`text-neutral-500 hover:bg-white/[0.06] hover:text-neutral-200 ${
+            current === null ? 'invisible' : ''
+          }`}
         >
           <Trash2 aria-hidden="true" className="size-3.5" />
           Clear
@@ -461,7 +537,12 @@ function TimeChip({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange} showSwipeHandle>
-        <DrawerTrigger className={triggerClass}>{trigger}</DrawerTrigger>
+        <DrawerTrigger
+          style={animationStyle(animation)}
+          className={triggerClass}
+        >
+          {trigger}
+        </DrawerTrigger>
         <DrawerContent aria-label={editorLabel} className="dark border-white/10 bg-[#17171f]">
           <DrawerHeader className="text-left">
             <DrawerTitle>{editorLabel}</DrawerTitle>
@@ -475,13 +556,18 @@ function TimeChip({
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger className={triggerClass}>{trigger}</PopoverTrigger>
+      <PopoverTrigger
+        style={animationStyle(animation)}
+        className={triggerClass}
+      >
+        {trigger}
+      </PopoverTrigger>
       <PopoverContent
         role="dialog"
         aria-label={editorLabel}
         align="start"
         sideOffset={6}
-        className="dark w-64 rounded-xl border border-white/10 bg-[#17171f] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.62)]"
+        className="dark w-64 rounded-xl border border-white/10 bg-[#17171f] p-3 shadow-lg"
       >
         {editor}
       </PopoverContent>
@@ -557,7 +643,7 @@ function AirportChip({
   onOpenChange,
   onEdit,
 }: {
-  chip: ChipView
+  chip: RowChipView
   field: 'origin' | 'destination'
   intent: TripIntent
   open: boolean
@@ -568,7 +654,9 @@ function AirportChip({
   const current = field === 'origin' ? intent.origin : intent.destination
   const assumed = field === 'origin' && intent.origin?.assumed === true
   const isMobile = useIsMobile()
-  const triggerLabel = `${chip.label} ${chip.value}${chip.assumed ? ' assumed' : ''}`
+  const triggerLabel = chip.unfilled
+    ? (PROMPT_LABELS[chip.field] ?? chip.label)
+    : `${chip.label} ${chip.value}${chip.assumed ? ' assumed' : ''}`
   const triggerClass = `${chipClasses(chip, animation)} ${CHIP_TRIGGER_INTERACTION}`
   const selectPlace = (place: Place | null) => {
     if (place === null) return
@@ -581,7 +669,11 @@ function AirportChip({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange} showSwipeHandle>
-        <DrawerTrigger aria-label={triggerLabel} className={triggerClass}>
+        <DrawerTrigger
+          aria-label={triggerLabel}
+          style={animationStyle(animation)}
+          className={triggerClass}
+        >
           <MapPin aria-hidden="true" className="size-3 text-neutral-500" />
           <ChipBody chip={chip} />
           <ChevronDown aria-hidden="true" className="size-3 text-neutral-500" />
@@ -615,7 +707,7 @@ function AirportChip({
                 className="w-full **:data-[slot=input-group-control]:h-10 **:data-[slot=input-group-control]:text-sm"
               />
               <AirportOptions currentIata={current?.iata ?? null} assumed={assumed} inline />
-              {field === 'destination' && (
+              {field === 'destination' && current !== null && (
                 <div className="mt-2 flex justify-start border-t border-white/[0.07] pt-2">
                   <Button
                     type="button"
@@ -650,6 +742,7 @@ function AirportChip({
     >
       <ComboboxTrigger
         aria-label={triggerLabel}
+        style={animationStyle(animation)}
         className={`${triggerClass} [&>svg]:size-3 [&>svg]:text-neutral-500`}
       >
         <MapPin aria-hidden="true" className="size-3 text-neutral-500" />
@@ -659,7 +752,7 @@ function AirportChip({
         aria-label={`Edit ${chip.label}`}
         align="start"
         sideOffset={6}
-        className="dark w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-white/10 bg-[#17171f] p-0 shadow-[0_18px_50px_rgba(0,0,0,0.62)]"
+        className="dark w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-white/10 bg-[#17171f] p-0 shadow-lg"
       >
         <ComboboxInput
           autoFocus
@@ -669,7 +762,7 @@ function AirportChip({
           className="m-2 w-[calc(100%-1rem)] **:data-[slot=input-group-control]:h-9 **:data-[slot=input-group-control]:text-xs"
         />
         <AirportOptions currentIata={current?.iata ?? null} assumed={assumed} />
-        {field === 'destination' && (
+        {field === 'destination' && current !== null && (
           <div className="border-t border-white/[0.07] p-1.5">
             <Button
               type="button"
@@ -769,6 +862,7 @@ function SimpleChoiceChip({
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger
+        style={animationStyle(animation)}
         className={`${chipClasses(chip, animation)} ${CHIP_TRIGGER_INTERACTION}`}
       >
         <ChipBody chip={chip} />
@@ -777,7 +871,7 @@ function SimpleChoiceChip({
       <DropdownMenuContent
         align="start"
         sideOffset={6}
-        className="dark min-w-44 rounded-xl border border-white/10 bg-[#17171f] p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.62)]"
+        className="dark min-w-44 rounded-xl border border-white/10 bg-[#17171f] p-1.5 shadow-lg"
       >
         <DropdownMenuRadioGroup
           value={definition.currentValue(intent)}
@@ -819,33 +913,42 @@ function isSimpleField(field: IntentField): field is SimpleField {
   return Object.hasOwn(SIMPLE_FIELD_DEFINITIONS, field)
 }
 
-export function PromptChip({ label }: { label: string }) {
-  return (
-    <span
-      className={`${CHIP_BASE} rota-pop animate-pulse border-dashed border-indigo-300/40 bg-indigo-300/[0.04] text-indigo-200/90`}
-    >
-      {label}
-    </span>
-  )
-}
-
-function chipClasses(chip: ChipView, animation: ChipAnimation | undefined): string {
+function chipClasses(chip: RowChipView, animation: ChipAnimation | undefined): string {
   return [
     CHIP_BASE,
-    chip.assumed
-      ? 'border-dashed border-amber-400/40 bg-amber-400/[0.06]'
-      : 'border-white/10 bg-white/[0.06]',
-    animation === 'set' ? 'rota-pop' : '',
-    animation === 'changed' ? 'rota-flash' : '',
+    chip.unfilled
+      ? chip.emphasized
+        ? 'border-dashed border-indigo-300/60 bg-indigo-300/[0.08]'
+        : 'border-dashed border-white/[0.14] bg-white/[0.02]'
+      : chip.assumed
+        ? 'border-dashed border-amber-400/40 bg-amber-400/[0.06]'
+        : 'border-white/10 bg-white/[0.06]',
+    animation?.kind === 'set' ? 'rota-pop' : '',
+    animation?.kind === 'changed' ? 'rota-flash' : '',
   ].join(' ')
 }
 
-function ChipBody({ chip }: { chip: ChipView }) {
+function animationStyle(
+  animation: ChipAnimation | undefined,
+): { animationDelay: string } | undefined {
+  return animation ? { animationDelay: `${animation.delayMs}ms` } : undefined
+}
+
+function ChipBody({ chip }: { chip: RowChipView }) {
+  if (chip.unfilled) {
+    return (
+      <span
+        className={`font-medium ${chip.emphasized ? 'text-indigo-200' : 'text-neutral-400'}`}
+      >
+        {PROMPT_LABELS[chip.field] ?? chip.label}
+      </span>
+    )
+  }
   return (
-    <>
+    <span className="inline-flex items-baseline gap-1.5">
       <span className="text-[10px] tracking-wide text-neutral-500 uppercase">{chip.label}</span>
       <span className="font-medium text-neutral-100">{chip.value}</span>
       {chip.assumed && <span className="text-[10px] text-amber-400/90">assumed</span>}
-    </>
+    </span>
   )
 }

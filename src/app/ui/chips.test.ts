@@ -141,14 +141,11 @@ describe('ChipsRow', () => {
       },
     })
 
+    // The exact selection carries over as the range start: switching modes never
+    // discards a picked day, so one tap on the end date completes the window.
     await user.click(screen.getByRole('button', { name: /dates.*Feb 3/i }))
     const flexiblePanel = await screen.findByRole('dialog', { name: 'Edit Dates' })
     await user.click(within(flexiblePanel).getByRole('button', { name: 'Flexible' }))
-    await user.click(
-      within(flexiblePanel).getByRole('button', {
-        name: /Wednesday, February 10th, 2027/i,
-      }),
-    )
     expect(onEdit).toHaveBeenCalledTimes(1)
     await user.click(
       within(flexiblePanel).getByRole('button', {
@@ -158,10 +155,55 @@ describe('ChipsRow', () => {
     expect(onEdit).toHaveBeenLastCalledWith({
       field: 'dates',
       value: {
-        earliest: '2027-02-10',
+        earliest: '2027-02-03',
         latest: '2027-02-14',
         flexibility: 'flexible',
       },
+    })
+  })
+
+  it('opens the dates editor from an unfilled prompt chip and orders a flexible range', async () => {
+    const { onEdit } = setup({ ...intent, dates: null })
+    const user = userEvent.setup()
+    // No committed window, so the calendar opens on the real current month.
+    const today = new Date()
+    const monthName = today.toLocaleString('en-US', { month: 'long' })
+    const monthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+
+    await user.click(screen.getByRole('button', { name: 'When?' }))
+    const panel = await screen.findByRole('dialog', { name: 'Edit Dates' })
+    await user.click(within(panel).getByRole('button', { name: 'Flexible' }))
+    await user.click(
+      within(panel).getByRole('button', { name: new RegExp(`${monthName} 10th`) }),
+    )
+    expect(onEdit).not.toHaveBeenCalled()
+    await user.click(
+      within(panel).getByRole('button', { name: new RegExp(`${monthName} 14th`) }),
+    )
+    expect(onEdit).toHaveBeenLastCalledWith({
+      field: 'dates',
+      value: {
+        earliest: `${monthKey}-10`,
+        latest: `${monthKey}-14`,
+        flexibility: 'flexible',
+      },
+    })
+  })
+
+  it('opens the registry typeahead from an unfilled destination prompt chip', async () => {
+    const { onEdit } = setup({ ...intent, destination: null })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('combobox', { name: 'Where to?' }))
+    const search = await screen.findByRole('combobox', { name: 'Search airports' })
+    // An unfilled destination offers nothing to clear.
+    expect(screen.queryByText('Clear')).toBeNull()
+    await user.type(search, 'Lisbon')
+    await user.click(await screen.findByRole('option', { name: /Lisbon.*LIS/i }))
+
+    expect(onEdit).toHaveBeenLastCalledWith({
+      field: 'destination',
+      value: { iata: 'LIS', city: 'Lisbon' },
     })
   })
 
@@ -333,11 +375,13 @@ describe('ChipsRow', () => {
   })
 })
 
-function setup(): { onEdit: ReturnType<typeof vi.fn<(edit: IntentEdit) => void>> } {
+function setup(
+  rowIntent: TripIntent = intent,
+): { onEdit: ReturnType<typeof vi.fn<(edit: IntentEdit) => void>> } {
   const onEdit = vi.fn<(edit: IntentEdit) => void>()
   render(
     createElement(ChipsRow, {
-      intent,
+      intent: rowIntent,
       animations: new Map(),
       runId: 1,
       onEdit,

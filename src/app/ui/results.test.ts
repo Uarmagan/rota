@@ -2,8 +2,8 @@
 
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { createElement } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { Fragment, StrictMode, Suspense, createElement } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { FlightOption } from '@/lib/engine/types'
 import { Results } from './results'
 
@@ -48,9 +48,119 @@ const second: FlightOption = {
   pricing: { priceUsd: 700 },
 }
 
-afterEach(cleanup)
+const third: FlightOption = {
+  ...second,
+  id: 'meridian-003',
+  segments: second.segments.map((segment) => ({
+    ...segment,
+    flight: 'NH 404',
+  })),
+}
+
+afterEach(() => {
+  cleanup()
+  Reflect.deleteProperty(window, 'matchMedia')
+  Reflect.deleteProperty(Element.prototype, 'animate')
+})
 
 describe('Results', () => {
+  it('does not let an abandoned render consume first-wave entrance delays', () => {
+    installMotionPreference(false)
+    const { rerender } = render(
+      createElement(
+        Suspense,
+        { fallback: null },
+        createElement(ResultsThenMaybeSuspend, {
+          options: [],
+          shouldSuspend: false,
+        }),
+      ),
+    )
+
+    rerender(
+      createElement(
+        Suspense,
+        { fallback: null },
+        createElement(ResultsThenMaybeSuspend, {
+          options: [first, second],
+          shouldSuspend: true,
+        }),
+      ),
+    )
+    rerender(
+      createElement(
+        Suspense,
+        { fallback: null },
+        createElement(ResultsThenMaybeSuspend, {
+          options: [first, third],
+          shouldSuspend: false,
+        }),
+      ),
+    )
+
+    const rows = document.querySelectorAll<HTMLElement>('.rota-row')
+    expect(rows).toHaveLength(2)
+    expect(rows[0].style.animationDelay).toBe('0ms')
+    expect(rows[1].style.animationDelay).toBe('30ms')
+  })
+
+  it('keeps wave, crown, and verdict metadata stable across repeated renders', () => {
+    installMotionPreference(false)
+    const { rerender } = render(
+      resultsElement([first], first.id, null, true),
+    )
+    expect(resultRow(first).style.animationDelay).toBe('0ms')
+
+    const streamingHandoff = resultsElement(
+      [first, second],
+      second.id,
+      null,
+      true,
+    )
+    rerender(streamingHandoff)
+    expect(resultRow(second).style.animationDelay).toBe('0ms')
+    expect(screen.getByText('★ BEST').style.animationDelay).toBe('280ms')
+    expect(resultRow(second).classList.contains('rota-verdict')).toBe(false)
+
+    rerender(streamingHandoff)
+    expect(screen.getByText('★ BEST').style.animationDelay).toBe('280ms')
+    expect(resultRow(second).classList.contains('rota-verdict')).toBe(false)
+
+    const settled = resultsElement([first, second], second.id, null, false)
+    rerender(settled)
+    expect(resultRow(second).classList.contains('rota-verdict')).toBe(true)
+    rerender(settled)
+    expect(resultRow(second).classList.contains('rota-verdict')).toBe(true)
+  })
+
+  it('keeps initial-wave motion metadata stable in StrictMode', () => {
+    installMotionPreference(false)
+    render(
+      createElement(
+        StrictMode,
+        null,
+        resultsElement([first, second], first.id, null, true),
+      ),
+    )
+
+    expect(resultRow(first).style.animationDelay).toBe('0ms')
+    expect(resultRow(second).style.animationDelay).toBe('30ms')
+  })
+
+  it('removes delays and browser animation work for reduced motion', () => {
+    installMotionPreference(true)
+    const animate = installAnimateStub()
+    const { rerender } = render(
+      resultsElement([first, second], first.id, null, true),
+    )
+
+    expect(resultRow(first).style.animationDelay).toBe('0ms')
+    expect(resultRow(second).style.animationDelay).toBe('0ms')
+    rerender(resultsElement([second, first], second.id, null, true))
+    expect(screen.getByText('★ BEST').style.animationDelay).toBe('0ms')
+    expect(animate).not.toHaveBeenCalled()
+  })
+
   it('toggles deterministic details with mouse and keyboard', async () => {
     const user = userEvent.setup()
     renderResults([first, second])
@@ -151,6 +261,53 @@ describe('Results', () => {
   })
 })
 
+const never = new Promise<void>(() => undefined)
+
+function Suspend(): never {
+  throw never
+}
+
+function ResultsThenMaybeSuspend({
+  options,
+  shouldSuspend,
+}: {
+  options: readonly FlightOption[]
+  shouldSuspend: boolean
+}) {
+  return createElement(
+    Fragment,
+    null,
+    resultsElement(options, options[0]?.id ?? null, null, true),
+    shouldSuspend ? createElement(Suspend) : null,
+  )
+}
+
+function installMotionPreference(reduced: boolean): void {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: () => ({ matches: reduced }),
+  })
+}
+
+function installAnimateStub() {
+  const animate = vi.fn(
+    () => ({ cancel: vi.fn() }) as unknown as Animation,
+  )
+  Object.defineProperty(Element.prototype, 'animate', {
+    configurable: true,
+    value: animate,
+  })
+  return animate
+}
+
+function resultRow(option: FlightOption): HTMLElement {
+  const time = option.segments[0].departLocal.slice(11, 16)
+  const button = screen.getByRole('button', { name: new RegExp(time) })
+  const row = button.closest<HTMLElement>('.rota-row')
+  if (!row) throw new Error(`Missing result row for ${option.id}`)
+  return row
+}
+
 function renderResults(
   options: readonly FlightOption[],
   bestId: string | null = first.id,
@@ -163,13 +320,14 @@ function resultsElement(
   options: readonly FlightOption[],
   bestId: string | null,
   why: { optionId: string; text: string } | null,
+  streaming = false,
 ) {
   return createElement(Results, {
     options,
     travelers: 2,
     bestId,
     why,
-    streaming: false,
+    streaming,
     sourcesDone: 4,
     sourcesTotal: 4,
     hidden: 0,
