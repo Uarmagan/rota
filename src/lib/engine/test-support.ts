@@ -15,14 +15,11 @@ export function makeOption(
         to: 'NRT',
         departLocal: '2027-02-10T10:00',
         arriveLocal: '2027-02-11T14:00',
+        flight: 'NH 11',
       },
     ],
     totalDurationMinutes: 660,
-    pricing: {
-      baseMiles: 60_000,
-      feesUsd: 40,
-      program: 'Aurora Miles',
-    },
+    pricing: { priceUsd: 600 },
     ...overrides,
   }
 }

@@ -1,3 +1,5 @@
+import { DEMO_API_ERROR_CODES } from './demo-api-errors'
+
 export const MAX_JSON_BODY_BYTES = 32 * 1024
 
 export type LimitedJsonErrorReason =
@@ -84,7 +86,7 @@ export function limitedJsonErrorResponse(
 export function rateLimited(retryAfterMs: number): Response {
   const retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1_000))
   return Response.json(
-    { error: 'rate_limited' },
+    { error: DEMO_API_ERROR_CODES.rateLimited },
     {
       status: 429,
       headers: { 'Retry-After': String(retryAfterSeconds) },

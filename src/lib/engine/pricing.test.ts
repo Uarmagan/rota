@@ -1,32 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { computeAwardPrice, milesEquivalent } from './pricing'
+import { computePartyPrice } from './pricing'
 
-const pricing = {
-  baseMiles: 60_000,
-  feesUsd: 40,
-  program: 'Aurora Miles',
-}
-
-describe('computeAwardPrice', () => {
-  it('returns one-traveler display totals', () => {
-    expect(computeAwardPrice(pricing, 1)).toEqual({
-      totalMiles: 60_000,
-      totalFeesUsd: 40,
-      program: 'Aurora Miles',
-    })
+describe('computePartyPrice', () => {
+  it('returns one-traveler cash price', () => {
+    expect(computePartyPrice({ priceUsd: 620 }, 1)).toEqual({ totalUsd: 620 })
   })
 
-  it('multiplies miles and fees for the whole party', () => {
-    expect(computeAwardPrice(pricing, 4)).toEqual({
-      totalMiles: 240_000,
-      totalFeesUsd: 160,
-      program: 'Aurora Miles',
-    })
-  })
-})
-
-describe('milesEquivalent', () => {
-  it('converts fees through the fixed price scalar', () => {
-    expect(milesEquivalent(pricing)).toBe(63_200)
+  it('multiplies the per-traveler fare for the whole party', () => {
+    expect(computePartyPrice({ priceUsd: 620 }, 4)).toEqual({ totalUsd: 2480 })
   })
 })

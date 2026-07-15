@@ -1,8 +1,10 @@
 import type { ParseResult, Place, TripIntent } from '../schema/trip-intent'
+import type { AirportAliasMap } from '../schema/places'
 
 export interface ParserContext {
   today: string
   supportedPlaces: readonly Place[]
+  airportAliases: AirportAliasMap
 }
 
 export interface IntentParser {
@@ -11,7 +13,7 @@ export interface IntentParser {
 
 export class ParserError extends Error {
   constructor(
-    readonly reason: 'invalid_output' | 'transport',
+    readonly reason: 'invalid_output' | 'transport' | 'budget_exhausted',
     message: string,
   ) {
     super(message)

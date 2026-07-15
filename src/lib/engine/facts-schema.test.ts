@@ -6,11 +6,7 @@ const validFacts: ExplanationFacts = {
   optionId: 'option-1',
   stops: 1,
   totalDurationMinutes: 815,
-  price: {
-    totalMiles: 145000,
-    totalFeesUsd: 96,
-    program: 'Meridian Elite',
-  },
+  price: { totalUsd: 1450 },
   isBestMatch: true,
   isCheapest: false,
   isFastest: false,
@@ -20,7 +16,7 @@ const validFacts: ExplanationFacts = {
     stopsDelta: 1,
     durationDeltaMinutes: 130,
     arrivalDeltaMinutes: -360,
-    totalMilesDelta: 8000,
+    totalUsdDelta: 80,
   },
   vsFastest: null,
 }
@@ -42,11 +38,11 @@ describe('explanationFactsSchema', () => {
     ).toBe(false)
   })
 
-  it('rejects fractional miles', () => {
+  it('rejects fractional dollars', () => {
     expect(
       explanationFactsSchema.safeParse({
         ...validFacts,
-        price: { ...validFacts.price, totalMiles: 145000.5 },
+        price: { ...validFacts.price, totalUsd: 1450.5 },
       }).success,
     ).toBe(false)
   })

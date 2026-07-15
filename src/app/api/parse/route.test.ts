@@ -77,7 +77,7 @@ describe('handleParse', () => {
       gap: {
         kind: 'follow_up',
         question:
-          'I couldn\'t use "somewhere warm" — and I still need a destination. Where would you like to fly?',
+          'I couldn\'t use "somewhere warm", and I still need a destination. Where would you like to fly?',
       },
     })
   })
@@ -96,6 +96,21 @@ describe('handleParse', () => {
 
     expect(response.status).toBe(status)
     expect(await response.json()).toEqual({ error: reason })
+  })
+
+  it('reports an exhausted demo budget without presenting it as an outage', async () => {
+    const parser: IntentParser = {
+      parse: async () => {
+        throw new ParserError('budget_exhausted', 'OpenAI quota exhausted')
+      },
+    }
+
+    const response = await handleParse(validRequest(), parser, allowingGate)
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: 'demo_budget_exhausted',
+    })
   })
 
   it('releases the model-call permit when the parser throws', async () => {

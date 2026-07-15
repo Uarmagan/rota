@@ -1,6 +1,6 @@
 import type { TripIntent } from '../schema/trip-intent'
 import { wallClockMinutes } from './clock'
-import { computeAwardPrice, milesEquivalent } from './pricing'
+import { computePartyPrice } from './pricing'
 import { bestMatch, rankOptions } from './rank'
 import type {
   ExplanationFacts,
@@ -16,9 +16,7 @@ export function explainOption(
   const option = options.find(({ id }) => id === optionId)
   if (!option) throw new Error(`Cannot explain unknown option: ${optionId}`)
   const travelers = intent.travelers ?? 1
-  const cheapest = minimumOption(options, ({ pricing }) =>
-    milesEquivalent(pricing),
-  )
+  const cheapest = minimumOption(options, ({ pricing }) => pricing.priceUsd)
   const fastest = minimumOption(
     options,
     ({ totalDurationMinutes }) => totalDurationMinutes,
@@ -28,7 +26,7 @@ export function explainOption(
     optionId: option.id,
     stops: option.segments.length - 1,
     totalDurationMinutes: option.totalDurationMinutes,
-    price: computeAwardPrice(option.pricing, travelers),
+    price: computePartyPrice(option.pricing, travelers),
     isBestMatch: bestMatch(rankOptions(intent, options))?.id === option.id,
     isCheapest: cheapest.id === option.id,
     isFastest: fastest.id === option.id,
@@ -72,8 +70,8 @@ function compareOptions(
       option.totalDurationMinutes - reference.totalDurationMinutes,
     arrivalDeltaMinutes:
       wallClockMinutes(optionArrival) - wallClockMinutes(referenceArrival),
-    totalMilesDelta:
-      computeAwardPrice(option.pricing, travelers).totalMiles -
-      computeAwardPrice(reference.pricing, travelers).totalMiles,
+    totalUsdDelta:
+      computePartyPrice(option.pricing, travelers).totalUsd -
+      computePartyPrice(reference.pricing, travelers).totalUsd,
   }
 }

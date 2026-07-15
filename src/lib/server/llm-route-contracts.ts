@@ -11,12 +11,11 @@ const MAX_TEXT_CODE_POINTS = 100
 const NUMERIC_MAXIMA = {
   stops: 10,
   durationMinutes: 7 * 24 * 60,
-  miles: 10_000_000,
-  feesUsd: 100_000,
+  priceUsd: 10_000_000,
   comparisonStops: 10,
   comparisonDurationMinutes: 7 * 24 * 60,
   comparisonArrivalMinutes: 7 * 24 * 60,
-  comparisonMiles: 10_000_000,
+  comparisonUsd: 10_000_000,
 } as const
 
 const boundedCitySchema = boundedString(MAX_CITY_CODE_POINTS)
@@ -39,12 +38,6 @@ const boundedExplanationFactsSchema = explanationFactsSchema.superRefine(
       MAX_TEXT_CODE_POINTS,
       context,
     )
-    addCodePointMaximum(
-      facts.price.program,
-      ['price', 'program'],
-      MAX_TEXT_CODE_POINTS,
-      context,
-    )
     addMaximum(facts.stops, ['stops'], NUMERIC_MAXIMA.stops, context)
     addMaximum(
       facts.totalDurationMinutes,
@@ -53,15 +46,9 @@ const boundedExplanationFactsSchema = explanationFactsSchema.superRefine(
       context,
     )
     addMaximum(
-      facts.price.totalMiles,
-      ['price', 'totalMiles'],
-      NUMERIC_MAXIMA.miles,
-      context,
-    )
-    addMaximum(
-      facts.price.totalFeesUsd,
-      ['price', 'totalFeesUsd'],
-      NUMERIC_MAXIMA.feesUsd,
+      facts.price.totalUsd,
+      ['price', 'totalUsd'],
+      NUMERIC_MAXIMA.priceUsd,
       context,
     )
     addComparisonMaxima(facts.vsCheapest, ['vsCheapest'], context)
@@ -158,9 +145,9 @@ function addComparisonMaxima(
     context,
   )
   addAbsoluteMaximum(
-    comparison.totalMilesDelta,
-    [...path, 'totalMilesDelta'],
-    NUMERIC_MAXIMA.comparisonMiles,
+    comparison.totalUsdDelta,
+    [...path, 'totalUsdDelta'],
+    NUMERIC_MAXIMA.comparisonUsd,
     context,
   )
 }

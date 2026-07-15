@@ -1,5 +1,8 @@
 # One airport per city for MVP; multi-airport metros deferred to phase 2
 
+Status: superseded in part by ADR 0008. M6 exercises the registry-order escape hatch
+without adding metro codes; the production metro abstraction remains deferred.
+
 The place registry had two Tokyo airports (NRT, HND) and a documented "first entry wins"
 rule for bare city names. That rule was only ever enforced by a soft parser-prompt
 instruction — `canonicalizePlaces` validates whatever IATA code the model emits and does

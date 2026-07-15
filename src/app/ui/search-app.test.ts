@@ -40,10 +40,11 @@ const FIRST_OPTION: FlightOption = {
       to: 'NRT',
       departLocal: '2027-02-03T08:00',
       arriveLocal: '2027-02-03T11:00',
+      flight: 'NH 101',
     },
   ],
   totalDurationMinutes: 900,
-  pricing: { baseMiles: 80_000, feesUsd: 60, program: 'Meridian Rewards' },
+  pricing: { priceUsd: 800 },
 }
 
 const BETTER_OPTION: FlightOption = {
@@ -56,10 +57,11 @@ const BETTER_OPTION: FlightOption = {
       to: 'NRT',
       departLocal: '2027-02-03T09:00',
       arriveLocal: '2027-02-03T10:00',
+      flight: 'NH 202',
     },
   ],
   totalDurationMinutes: 600,
-  pricing: { baseMiles: 40_000, feesUsd: 30, program: 'Aurora Premier' },
+  pricing: { priceUsd: 400 },
 }
 
 afterEach(() => {
@@ -98,10 +100,73 @@ describe('SearchApp', () => {
     const input = await submitUtterance('tokio maybe')
 
     expect(
-      await screen.findByText('I couldn’t turn that into a search — mind rephrasing?'),
+      await screen.findByText('I couldn’t turn that into a search. Mind rephrasing?'),
     ).toBeTruthy()
     expect(input.value).toBe('tokio maybe')
     expect(router.requestsFor('/api/search')).toHaveLength(0)
+  })
+
+  it('distinguishes the visitor allowance from a parser outage', async () => {
+    const router = new FetchRouter()
+    router.parse.push(
+      Response.json({ error: 'rate_limited' }, { status: 429 }),
+    )
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+
+    expect(
+      await screen.findByText('Demo limit reached. Try again in a few minutes.'),
+    ).toBeTruthy()
+  })
+
+  it('explains when live AI is paused and offers a budget contact link', async () => {
+    const router = new FetchRouter()
+    router.parse.push(
+      Response.json(
+        { error: 'demo_budget_exhausted' },
+        { status: 503 },
+      ),
+    )
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+
+    expect(
+      await screen.findByText(/Live AI is paused because this month’s demo budget/),
+    ).toBeTruthy()
+    const contact = screen.getByRole('link', { name: 'Email me' })
+    expect(contact.getAttribute('href')).toBe(
+      'mailto:ugurarmagan93@gmail.com?subject=Rota%20demo%20budget',
+    )
+  })
+
+  it.each([
+    [
+      'visitor allowance',
+      Response.json({ error: 'rate_limited' }, { status: 429 }),
+      'Demo limit reached. Try again in a few minutes.',
+    ],
+    [
+      'demo budget',
+      Response.json(
+        { error: 'demo_budget_exhausted' },
+        { status: 503 },
+      ),
+      'Live AI is paused because this month’s demo budget',
+    ],
+  ])('surfaces the %s boundary when fetching a why-line', async (_case, response, copy) => {
+    const router = new FetchRouter()
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(
+      sseResponse([batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]),
+    )
+    router.explain.push(response)
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+
+    expect(await screen.findByText(new RegExp(copy))).toBeTruthy()
   })
 
   it('keeps a direct origin edit when an older parse resolves', async () => {
@@ -285,7 +350,7 @@ describe('SearchApp', () => {
 
     expect(input.value).toBe('')
     expect(
-      screen.queryByText('Trouble reaching the parser — try again in a moment.'),
+      screen.queryByText('Trouble reaching the parser. Try again in a moment.'),
     ).toBeNull()
     expect(screen.getByText('SFO · San Francisco')).toBeTruthy()
     expect(screen.queryByText('parsing…')).toBeNull()
@@ -321,7 +386,7 @@ describe('SearchApp', () => {
     await submitUtterance('tokyo for 2')
 
     expect(await screen.findByText('When?')).toBeTruthy()
-    expect(screen.getByText('Add dates to search — try “in february”.')).toBeTruthy()
+    expect(screen.getByText('Add dates to search. Try “in february”.')).toBeTruthy()
     expect(router.requestsFor('/api/search')).toHaveLength(0)
   })
 
@@ -358,7 +423,7 @@ describe('SearchApp', () => {
     await stream.fail(new Error('connection dropped'))
 
     expect(
-      await screen.findByText('The search stream dropped — try again.'),
+      await screen.findByText('The search stream dropped. Try again.'),
     ).toBeTruthy()
   })
 

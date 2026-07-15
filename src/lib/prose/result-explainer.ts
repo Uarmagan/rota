@@ -5,6 +5,10 @@ export interface Explanation {
   source: 'model' | 'fallback'
 }
 
+export type ExplanationOutcome =
+  | Explanation
+  | { source: 'budget_exhausted' }
+
 export interface ResultExplainer {
-  explain(facts: ExplanationFacts): Promise<Explanation>
+  explain(facts: ExplanationFacts): Promise<ExplanationOutcome>
 }

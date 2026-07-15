@@ -46,8 +46,7 @@ const VAGUE_WORDS = new Set([
 export function allowedNumbers(facts: ExplanationFacts): ReadonlySet<number> {
   const allowed = new Set<number>([
     facts.stops,
-    facts.price.totalMiles,
-    facts.price.totalFeesUsd,
+    facts.price.totalUsd,
   ])
   addDuration(allowed, facts.totalDurationMinutes)
   if (facts.arriveBy !== null) {
@@ -97,5 +96,5 @@ function addComparison(
   allowed.add(Math.abs(comparison.stopsDelta))
   addDuration(allowed, Math.abs(comparison.durationDeltaMinutes))
   addDuration(allowed, Math.abs(comparison.arrivalDeltaMinutes))
-  allowed.add(Math.abs(comparison.totalMilesDelta))
+  allowed.add(Math.abs(comparison.totalUsdDelta))
 }

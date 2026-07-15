@@ -1,24 +1,32 @@
 import { isDeepStrictEqual } from 'node:util'
 import { computeIntentDiff } from '../src/lib/engine/diff'
 import { canonicalizePlaces } from '../src/lib/engine/normalize'
-import { parserFixtures, type ParserFixture } from '../src/lib/parser/fixtures'
+import {
+  parserEvaluationCases,
+  type ParserEvaluationCase,
+} from '../src/lib/parser/fixtures'
 import { OpenAIIntentParser } from '../src/lib/parser/openai-intent-parser'
-
-interface EvalOptions {
-  reps: number
-  model?: string
-  fixture?: string
-}
+import {
+  parseArgs,
+  requiredCorrectReps,
+  requiresPerfectRun,
+  selectEvaluationCases,
+  unhandledMatches as matchesUnhandled,
+  validateFixtureRun,
+  wordingHit,
+} from './eval-policy'
 
 interface RepResult {
   correct: boolean
   retried: boolean
   latencyMs: number
   softWordingHit: boolean | null
+  failure: string | null
 }
 
 interface ScorecardRow {
   fixture: string
+  requiredPassRate: string
   result: 'PASS' | 'FAIL'
   passRate: string
   retryRate: string
@@ -33,11 +41,8 @@ async function main(): Promise<void> {
   }
 
   const options = parseArgs(process.argv.slice(2))
-  const fixtures = options.fixture
-    ? parserFixtures.filter((fixture) => fixture.name === options.fixture)
-    : parserFixtures
-
-  if (fixtures.length === 0) throw new Error(`Unknown fixture: ${options.fixture}`)
+  const fixtures = selectEvaluationCases(parserEvaluationCases, options)
+  validateFixtureRun(fixtures, options.reps)
 
   const rows: ScorecardRow[] = []
   let passingFixtures = 0
@@ -51,8 +56,8 @@ async function main(): Promise<void> {
     }
 
     const correct = results.filter((result) => result.correct).length
-    const required =
-      fixture.kind === 'hostile' ? options.reps : Math.ceil(options.reps * 0.8)
+    const perfectRunRequired = requiresPerfectRun(fixture)
+    const required = requiredCorrectReps(fixture, options.reps)
     const passed = correct >= required
     if (passed) passingFixtures += 1
     passingReps += correct
@@ -63,6 +68,7 @@ async function main(): Promise<void> {
     const wordingHits = wordingChecks.filter((result) => result.softWordingHit).length
     rows.push({
       fixture: fixture.name,
+      requiredPassRate: perfectRunRequired ? '100%' : '80%',
       result: passed ? 'PASS' : 'FAIL',
       passRate: `${correct}/${results.length}`,
       retryRate: `${results.filter((result) => result.retried).length}/${results.length}`,
@@ -71,6 +77,12 @@ async function main(): Promise<void> {
       softWording:
         wordingChecks.length === 0 ? 'n/a' : `${wordingHits}/${wordingChecks.length}`,
     })
+
+    results.forEach((result, index) => {
+      if (result.failure) {
+        console.error(`${fixture.name} rep ${index + 1}: ${result.failure}`)
+      }
+    })
   }
 
   console.table(rows)
@@ -78,14 +90,15 @@ async function main(): Promise<void> {
   console.log(
     `Overall: ${overall} | ` +
       `model: ${options.model ?? process.env.ROTA_MODEL ?? 'gpt-5.6-luna'} | ` +
-      `fixtures: ${passingFixtures}/${fixtures.length} | reps: ${passingReps}/${totalReps}`,
+      `suite: ${options.challengeOnly ? 'challenge' : 'all'} | ` +
+      `cases: ${passingFixtures}/${fixtures.length} | reps: ${passingReps}/${totalReps}`,
   )
 
   if (passingFixtures !== fixtures.length) process.exitCode = 1
 }
 
 async function runRep(
-  fixture: ParserFixture,
+  fixture: ParserEvaluationCase,
   model: string | undefined,
 ): Promise<RepResult> {
   const parser = new OpenAIIntentParser(fixture.context, { model })
@@ -98,67 +111,75 @@ async function runRep(
       .map((change) => change.field)
       .sort()
     const expectedFields = [...fixture.expectedChangedFields].sort()
-    const unhandledNullnessMatches =
-      (result.unhandled === null) === (fixture.expectedUnhandled === null)
+    const softWordingHit = wordingHit(result.unhandled, fixture.expectedUnhandled)
+    const unhandledIsCorrect = matchesUnhandled(fixture, result.unhandled)
+    const intentMatches = isDeepStrictEqual(canonical, fixture.expected)
+    const changedFieldsMatch = isDeepStrictEqual(changedFields, expectedFields)
+    const correct = intentMatches && changedFieldsMatch && unhandledIsCorrect
 
     return {
-      correct:
-        isDeepStrictEqual(canonical, fixture.expected) &&
-        isDeepStrictEqual(changedFields, expectedFields) &&
-        unhandledNullnessMatches,
+      correct,
       retried: parser.lastAttemptCount > 1,
       latencyMs: Math.round(performance.now() - started),
-      softWordingHit: wordingHit(result.unhandled, fixture.expectedUnhandled),
+      softWordingHit,
+      failure: correct
+        ? null
+        : formatMismatch({
+            intentMatches,
+            changedFieldsMatch,
+            unhandledMatches: unhandledIsCorrect,
+            canonical,
+            expected: fixture.expected,
+            changedFields,
+            expectedFields,
+            unhandled: result.unhandled,
+            expectedUnhandled: fixture.expectedUnhandled,
+          }),
     }
-  } catch {
+  } catch (error) {
     return {
       correct: false,
       retried: parser.lastAttemptCount > 1,
       latencyMs: Math.round(performance.now() - started),
       softWordingHit: null,
+      failure: error instanceof Error ? error.message : String(error),
     }
   }
 }
 
-function wordingHit(actual: string | null, expected: string | null): boolean | null {
-  if (actual === null || expected === null) return null
-  const normalizedActual = actual.toLocaleLowerCase()
-  const normalizedExpected = expected.toLocaleLowerCase()
-  return (
-    normalizedActual.includes(normalizedExpected) ||
-    normalizedExpected.includes(normalizedActual)
-  )
+function formatMismatch(input: {
+  intentMatches: boolean
+  changedFieldsMatch: boolean
+  unhandledMatches: boolean
+  canonical: unknown
+  expected: unknown
+  changedFields: readonly string[]
+  expectedFields: readonly string[]
+  unhandled: string | null
+  expectedUnhandled: string | null
+}): string {
+  const failures: string[] = []
+  if (!input.intentMatches) {
+    failures.push(
+      `intent expected ${JSON.stringify(input.expected)}; got ${JSON.stringify(input.canonical)}`,
+    )
+  }
+  if (!input.changedFieldsMatch) {
+    failures.push(
+      `changed fields expected ${JSON.stringify(input.expectedFields)}; got ${JSON.stringify(input.changedFields)}`,
+    )
+  }
+  if (!input.unhandledMatches) {
+    failures.push(
+      `unhandled expected ${JSON.stringify(input.expectedUnhandled)}; got ${JSON.stringify(input.unhandled)}`,
+    )
+  }
+  return failures.join(' | ')
 }
 
 function percentile(sortedValues: readonly number[], fraction: number): number {
   const index = Math.ceil(sortedValues.length * fraction) - 1
   return sortedValues[Math.max(0, index)] ?? 0
-}
-
-function parseArgs(args: readonly string[]): EvalOptions {
-  const options: EvalOptions = { reps: 5 }
-  for (let index = 0; index < args.length; index += 1) {
-    const flag = args[index]
-    if (flag === '--') continue
-    const value = args[index + 1]
-    if (!value) throw new Error(`Missing value for ${flag}`)
-
-    if (flag === '--reps') {
-      const reps = Number(value)
-      if (!Number.isInteger(reps) || reps < 1) {
-        throw new Error('--reps must be a positive integer')
-      }
-      options.reps = reps
-    } else if (flag === '--model') {
-      options.model = value
-    } else if (flag === '--fixture') {
-      options.fixture = value
-    } else {
-      throw new Error(`Unknown argument: ${flag}`)
-    }
-    index += 1
-  }
-  return options
 }
 
 main().catch((error: unknown) => {

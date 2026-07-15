@@ -7,11 +7,7 @@ const facts: ExplanationFacts = {
   optionId: 'option-1',
   stops: 1,
   totalDurationMinutes: 815,
-  price: {
-    totalMiles: 145000,
-    totalFeesUsd: 96,
-    program: 'Meridian Elite',
-  },
+  price: { totalUsd: 1450 },
   isBestMatch: true,
   isCheapest: false,
   isFastest: false,
@@ -21,14 +17,14 @@ const facts: ExplanationFacts = {
     stopsDelta: 1,
     durationDeltaMinutes: 130,
     arrivalDeltaMinutes: -360,
-    totalMilesDelta: 8000,
+    totalUsdDelta: 80,
   },
   vsFastest: null,
 }
 
 describe('checkNumberProvenance', () => {
   it.each([
-    'Costs 145,000 miles.',
+    'Costs $1,450 total.',
     'A 13h 35m trip.',
     'One more stop.',
     'Arrives by 18:00.',
@@ -41,7 +37,7 @@ describe('checkNumberProvenance', () => {
   it.each([
     '40% cheaper.',
     'About 14 hours.',
-    'Saves sixty-two thousand miles.',
+    'Saves sixty-two dollars.',
     'A couple of stops.',
   ])('rejects non-derived copy: %s', (copy) => {
     expect(checkNumberProvenance(copy, facts).ok).toBe(false)
@@ -62,7 +58,7 @@ describe('checkNumberProvenance', () => {
         isBestMatch: false,
         isCheapest: true,
         totalDurationMinutes: 780,
-        price: { ...facts.price, totalMiles: 98000, totalFeesUsd: 112 },
+        price: { totalUsd: 980 },
       },
     ]
 

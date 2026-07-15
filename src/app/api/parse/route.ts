@@ -5,6 +5,7 @@ import {
   fillDefaults,
 } from '../../../lib/engine/normalize'
 import { ParserError, type IntentParser } from '../../../lib/parser/intent-parser'
+import { DEMO_API_ERROR_CODES } from '../../../lib/server/demo-api-errors'
 import { parseIntentRequest } from '../../../lib/server/llm-route-contracts'
 import { clientKeyForRequest } from '../../../lib/server/request-client'
 import type { ModelCallGate } from '../../../lib/server/request-gate'
@@ -46,6 +47,12 @@ export async function handleParse(
     return Response.json({ intent, gap: checkGaps(intent, result.unhandled) })
   } catch (error) {
     if (error instanceof ParserError) {
+      if (error.reason === 'budget_exhausted') {
+        return Response.json(
+          { error: DEMO_API_ERROR_CODES.budgetExhausted },
+          { status: 503 },
+        )
+      }
       const status = error.reason === 'invalid_output' ? 422 : 502
       return Response.json({ error: error.reason }, { status })
     }

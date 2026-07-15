@@ -10,11 +10,7 @@ const facts: ExplanationFacts = {
   optionId: 'option-1',
   stops: 0,
   totalDurationMinutes: 815,
-  price: {
-    totalMiles: 145000,
-    totalFeesUsd: 96,
-    program: 'Meridian Elite',
-  },
+  price: { totalUsd: 1450 },
   isBestMatch: true,
   isCheapest: false,
   isFastest: false,
@@ -45,7 +41,7 @@ describe('LLM route transport contracts', () => {
     ).toBe(false)
   })
 
-  it('accepts city, option, and program labels at 100 Unicode code points', () => {
+  it('accepts city and option labels at 100 Unicode code points', () => {
     const label = '🚀'.repeat(100)
     const intent = {
       ...createEmptyTripIntent(),
@@ -60,13 +56,12 @@ describe('LLM route transport contracts', () => {
         facts: {
           ...facts,
           optionId: label,
-          price: { ...facts.price, program: label },
         },
       }).success,
     ).toBe(true)
   })
 
-  it('rejects city, option, and program labels over 100 Unicode code points', () => {
+  it('rejects city and option labels over 100 Unicode code points', () => {
     const label = '🚀'.repeat(101)
     const intent = {
       ...createEmptyTripIntent(),
@@ -78,11 +73,6 @@ describe('LLM route transport contracts', () => {
     ).toBe(false)
     expect(
       parseExplanationRequest({ facts: { ...facts, optionId: label } }).success,
-    ).toBe(false)
-    expect(
-      parseExplanationRequest({
-        facts: { ...facts, price: { ...facts.price, program: label } },
-      }).success,
     ).toBe(false)
   })
 
@@ -100,7 +90,7 @@ describe('LLM route transport contracts', () => {
             stopsDelta: 0,
             durationDeltaMinutes: 0,
             arrivalDeltaMinutes: 0,
-            totalMilesDelta: 10_000_001,
+            totalUsdDelta: 10_000_001,
           },
         },
       }).success,

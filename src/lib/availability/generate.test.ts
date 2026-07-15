@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { generateSourceOptions } from './generate'
+import { AIRLINES, airlinesForRoute } from './airlines'
+import { airportInfo } from './airports'
+import {
+  generateSourceOptions,
+  generateSourceOptionsFromRandom,
+} from './generate'
 import { DEFAULT_BASE_SEED } from './provider'
 import { SIMULATED_SOURCES } from './sources'
-import { UTC_OFFSET_MINUTES } from './time'
-import type { AvailabilityQuery } from './types'
+import type { AvailabilityQuery, SourcePersonality } from './types'
 
 const FLEXIBLE_QUERY: AvailabilityQuery = {
   origin: 'ORD',
@@ -38,20 +42,45 @@ describe('generateSourceOptions', () => {
       for (let index = 1; index < option.segments.length; index += 1) {
         expect(option.segments[index - 1]?.to).toBe(option.segments[index]?.from)
       }
+      for (const segment of option.segments) {
+        expect(segment.flight).toMatch(/^[A-Z]{2} [1-9]\d{0,3}$/)
+        const airline = AIRLINES.find(({ code }) =>
+          segment.flight.startsWith(`${code} `),
+        )
+        expect(airline).toBeDefined()
+        expect(
+          airlinesForRoute(airportInfo(segment.from), airportInfo(segment.to)).some(
+            ({ code }) => code === airline?.code,
+          ),
+        ).toBe(true)
+      }
       expect(option.totalDurationMinutes).toBeGreaterThan(0)
     }
   })
 
-  it('generates rounded miles and whole fees inside each source pricing bands', () => {
+  it('generates whole-dollar per-traveler cash prices', () => {
     for (const option of allOptions()) {
-      const source = requiredSource(option.source)
-      expect(option.pricing.baseMiles).toBeGreaterThanOrEqual(7500)
-      expect(option.pricing.baseMiles % 500).toBe(0)
-      expect(Number.isInteger(option.pricing.feesUsd)).toBe(true)
-      expect(option.pricing.feesUsd).toBeGreaterThanOrEqual(source.feesUsd[0])
-      expect(option.pricing.feesUsd).toBeLessThanOrEqual(source.feesUsd[1])
-      expect(option.pricing.program).toBe(source.program)
+      expect(Number.isInteger(option.pricing.priceUsd)).toBe(true)
+      expect(option.pricing.priceUsd).toBeGreaterThan(0)
     }
+  })
+
+  it('discounts a connection against the nonstop-equivalent cash fare', () => {
+    const direct = generateSourceOptionsFromRandom(
+      { ...TEST_SOURCE, connectionBias: 0 },
+      EXACT_QUERY,
+      () => 0.5,
+    )[0]!
+    const connection = generateSourceOptionsFromRandom(
+      { ...TEST_SOURCE, connectionBias: 1 },
+      EXACT_QUERY,
+      () => 0.5,
+    )[0]!
+
+    expect(direct.segments).toHaveLength(1)
+    expect(direct.pricing.priceUsd).toBe(936)
+    expect(connection.segments).toHaveLength(2)
+    expect(connection.pricing.priceUsd).toBe(772)
   })
 
   it('keeps business and first inventory scarcer than economy', () => {
@@ -71,8 +100,8 @@ describe('generateSourceOptions', () => {
       for (const [index, segment] of option.segments.entries()) {
         computedDuration +=
           localMinuteDifference(segment.departLocal, segment.arriveLocal) -
-          ((UTC_OFFSET_MINUTES[segment.to] ?? 0) -
-            (UTC_OFFSET_MINUTES[segment.from] ?? 0))
+          (airportInfo(segment.to).utcOffsetMinutes -
+            airportInfo(segment.from).utcOffsetMinutes)
         const next = option.segments[index + 1]
         if (next !== undefined) {
           computedDuration += localMinuteDifference(segment.arriveLocal, next.departLocal)
@@ -122,8 +151,29 @@ function allOptions() {
   )
 }
 
-function requiredSource(id: string) {
-  const source = SIMULATED_SOURCES.find((candidate) => candidate.id === id)
-  if (source === undefined) throw new Error(`Unknown test source ${id}`)
-  return source
+const EXACT_QUERY: AvailabilityQuery = {
+  ...FLEXIBLE_QUERY,
+  dates: {
+    earliest: '2027-02-10',
+    latest: '2027-02-10',
+    flexibility: 'exact',
+  },
+  travelers: 1,
+}
+
+const TEST_SOURCE: SourcePersonality = {
+  id: 'test',
+  inventory: [1, 1],
+  connectionBias: 0,
+  cabinWeights: {
+    economy: 1,
+    premium_economy: 0,
+    business: 0,
+    first: 0,
+  },
+  priceMultiplier: 1,
+  priceJitter: 0.15,
+  batches: 1,
+  firstBatchMs: [0, 0],
+  interBatchMs: [0, 0],
 }

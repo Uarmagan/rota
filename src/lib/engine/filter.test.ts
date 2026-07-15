@@ -12,12 +12,14 @@ function makeConnectingOption() {
         to: 'LAX',
         departLocal: '2027-02-10T10:00',
         arriveLocal: '2027-02-10T11:30',
+        flight: 'UA 101',
       },
       {
         from: 'LAX',
         to: 'NRT',
         departLocal: '2027-02-10T13:00',
         arriveLocal: '2027-02-11T17:00',
+        flight: 'NH 202',
       },
     ],
   })
@@ -49,6 +51,7 @@ function makeTimedOption(
         to: 'NRT',
         departLocal,
         arriveLocal,
+        flight: 'NH 11',
       },
     ],
   })
@@ -100,6 +103,7 @@ describe('filterOptions generator contract', () => {
           to: 'YYY',
           departLocal: '2030-01-01T10:00',
           arriveLocal: '2030-01-01T12:00',
+          flight: 'UA 1',
         },
       ],
     })

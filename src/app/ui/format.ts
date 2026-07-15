@@ -1,9 +1,14 @@
 // Deterministic display formatting for the UI. Every number rendered here is
 // engine-computed or user-stated; nothing comes from a model.
 
+import { AIRLINES } from '../../lib/availability/airlines'
 import type { FlightOption } from '../../lib/engine/types'
 import type { IntentField } from '../../lib/schema/intent-diff'
 import type { Cabin, DateWindow, TripIntent } from '../../lib/schema/trip-intent'
+
+const AIRLINE_NAMES: Readonly<Record<string, string>> = Object.fromEntries(
+  AIRLINES.map((airline) => [airline.code, airline.name]),
+)
 
 const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -78,8 +83,8 @@ export function formatDuration(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
-export function formatMiles(miles: number): string {
-  return miles.toLocaleString('en-US')
+export function formatUsd(amount: number): string {
+  return `$${amount.toLocaleString('en-US')}`
 }
 
 export function departTime(option: FlightOption): string {
@@ -95,6 +100,22 @@ export function arrivalDayOffset(option: FlightOption): number {
   const depart = option.segments[0].departLocal.slice(0, 10)
   const arrive = option.segments.at(-1)!.arriveLocal.slice(0, 10)
   return Math.round((utcMs(arrive) - utcMs(depart)) / 86_400_000)
+}
+
+export function airlineLabel(option: FlightOption): string {
+  const codes = [...new Set(option.segments.map((s) => s.flight.split(' ')[0]))]
+  return codes.map((code) => AIRLINE_NAMES[code] ?? code).join(' · ')
+}
+
+// Minutes on the ground at a connection — arriving and departing the same
+// airport, the one place differencing two local stamps is valid.
+export function layoverMinutes(arriveLocal: string, departLocal: string): number {
+  return stampMinutes(departLocal) - stampMinutes(arriveLocal)
+}
+
+function stampMinutes(stamp: string): number {
+  const [y, m, d] = isoParts(stamp.slice(0, 10))
+  return Date.UTC(y, m - 1, d, Number(stamp.slice(11, 13)), Number(stamp.slice(14, 16))) / 60_000
 }
 
 export function stopsLabel(option: FlightOption): string {

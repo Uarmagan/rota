@@ -27,7 +27,7 @@ export function checkGaps(intent: TripIntent, unhandled: string | null): GapOutc
       kind: 'follow_up',
       reason: 'missing_destination',
       question: unhandled
-        ? `I couldn't use "${unhandled}" — and I still need a destination. Where would you like to fly?`
+        ? `I couldn't use "${unhandled}", and I still need a destination. Where would you like to fly?`
         : 'Where do you want to fly to?',
     }
   }

@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { FlightOption } from '../../lib/engine/types'
 import { createEmptyTripIntent, type TripIntent } from '../../lib/schema/trip-intent'
 import {
+  airlineLabel,
   arrivalDayOffset,
   chipsFromIntent,
   formatDateWindow,
   formatDuration,
+  layoverMinutes,
   stopsLabel,
 } from './format'
 
@@ -14,11 +16,11 @@ const OPTION: FlightOption = {
   source: 'meridian',
   cabin: 'business',
   segments: [
-    { from: 'ORD', to: 'SFO', departLocal: '2027-02-03T08:20', arriveLocal: '2027-02-03T10:55' },
-    { from: 'SFO', to: 'NRT', departLocal: '2027-02-03T13:10', arriveLocal: '2027-02-04T17:25' },
+    { from: 'ORD', to: 'SFO', departLocal: '2027-02-03T08:20', arriveLocal: '2027-02-03T10:55', flight: 'UA 101' },
+    { from: 'SFO', to: 'NRT', departLocal: '2027-02-03T13:10', arriveLocal: '2027-02-04T17:25', flight: 'NH 202' },
   ],
   totalDurationMinutes: 965,
-  pricing: { baseMiles: 72_500, feesUsd: 56, program: 'Meridian Rewards' },
+  pricing: { priceUsd: 725 },
 }
 
 describe('formatDateWindow', () => {
@@ -60,6 +62,16 @@ describe('option display helpers', () => {
   it('labels stops with the connection airports', () => {
     expect(stopsLabel(OPTION)).toBe('1 stop · SFO')
     expect(stopsLabel({ ...OPTION, segments: [OPTION.segments[1]] })).toBe('nonstop')
+  })
+
+  it('names airlines from segment flight codes, deduplicated', () => {
+    expect(airlineLabel(OPTION)).toBe('United · ANA')
+    expect(airlineLabel({ ...OPTION, segments: [OPTION.segments[0]] })).toBe('United')
+  })
+
+  it('computes layover minutes at the shared connection airport', () => {
+    expect(layoverMinutes('2027-02-03T10:55', '2027-02-03T13:10')).toBe(135)
+    expect(layoverMinutes('2027-02-03T22:40', '2027-02-04T01:10')).toBe(150)
   })
 })
 

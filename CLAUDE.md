@@ -15,7 +15,9 @@ anything:
   `src/lib/parser` and `src/lib/prose`. Enforced by `src/lib/import-boundaries.test.ts`.
 - The parser re-emits the COMPLETE TripIntent (never patches). IntentDiff is computed
   in the engine, never LLM-emitted.
-- No number shown to a user may originate from an LLM.
+- The parser may translate user-provided trip meaning into visible chip values such as
+  dates, times, and party size, but it must never invent them. No result number or
+  prose claim shown to a user may originate from an LLM.
 - AI SDK is pinned to the v6 line (`ai@^6`, `@ai-sdk/openai@^3`); `generateObject`/
   `streamObject` are banned — use `generateText`/`streamText` with `Output.object`.
   `typescript` stays on 5.x (Next 16 doesn't support TS 7).

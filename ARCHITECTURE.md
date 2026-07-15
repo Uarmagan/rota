@@ -20,8 +20,10 @@ by convention.
 src/
   lib/
     schema/         Shared vocabulary. TripIntent Zod schema + inferred types,
-                    IntentDiff types, and the canonical place registry
-                    (places.ts). Depends on zod only. No logic.
+                    IntentDiff types, and the canonical place registry plus
+                    versioned parser-visible airport aliases (places.ts).
+                    Contains vocabulary lookup/filter helpers, but no product
+                    policy. Imports only zod or other schema modules.
     engine/         The deterministic core. Pure TypeScript, zero framework and
                     zero LLM dependencies. Fully unit-testable without mocks.
                       normalize.ts  canonicalizePlaces: map every parser-emitted
@@ -37,20 +39,21 @@ src/
                       filter.ts     apply TripIntent constraints to flight options
                       rank.ts       scoring + best-match selection, stable under
                                     incremental arrival of results
-                      pricing.ts    simulated award pricing math (miles + fees)
+                      pricing.ts    per-traveler cash fare to party total
                       explain.ts    ExplanationFacts: computed comparisons within
                                     the result set ("fastest under arrive-by",
                                     "lands 6h earlier than cheapest")
                       types.ts      FlightOption and other engine domain types
     parser/         LLM boundary #1. IntentParser interface +
                     OpenAIIntentParser implementation, system prompt, committed
-                    fixture set. Returns ParseResult through Output.object and a
+                    fixture set. ParserContext receives registry-filtered airport
+                    aliases from schema vocabulary. Returns ParseResult through Output.object and a
                     Zod gate, then membership-checks the schema registry so every
                     model-mistake retry stays here. Depends on schema, never engine.
-    availability/   AvailabilityProvider interface + simulated sources with
-                    realistic per-source latency profiles and scarce premium
-                    inventory. Fake data, real async streaming. Seedable for
-                    deterministic tests.
+    availability/   AvailabilityProvider interface + simulated sources, a
+                    registry-synchronized airport table, haversine-derived block
+                    times, and deterministic real-airline display identities.
+                    Fake inventory, real async streaming. Seedable for tests.
     prose/          LLM boundary #2. ResultExplainer turns ExplanationFacts into
                     { text, source } and never throws. A derived allowlist guards
                     digits and number words; failure uses a deterministic fallback.
@@ -80,6 +83,12 @@ and (d) prose non-test files import only LLM packages, Zod, schema, engine, and 
 Because the engine is pure TS with no framework dependency, it runs identically on the
 server and in the client bundle — the client re-ranks streamed results locally with the
 same code the tests exercise.
+
+Airport aliases are parser vocabulary owned beside the versioned place registry.
+Availability continues to own display names, coordinates, offsets, and hub metadata.
+Aliases do not enter `Place`, `TripIntent`, `ParseResult`, or any API wire shape; those
+schemas remain frozen, and the membership gate still accepts IATA codes only from the
+context's `supportedPlaces` list.
 
 ## The intent pipeline
 
@@ -136,7 +145,7 @@ object and open the search as soon as destination + dates validate.
 | PRD principle | Enforcement point |
 |---|---|
 | 1. The AI never silently decides | Every interpretable field in `schema` is `.nullable()`; origin carries `assumed: boolean`. The parser never fills a gap: `engine/normalize.ts` owns assumption-filling and `engine/gaps.ts` owns the follow-up policy, both as pure, tested logic. Chips render only from TripIntent, so nothing that was decided can stay invisible. |
-| 2. The AI interprets, the engine computes | LLM calls exist in exactly two modules — `parser` (words → TripIntent, Zod-gated, then deterministically canonicalized) and `prose` (ExplanationFacts → copy) — enforced by the repo-wide allowlist guard. `prose` output passes a number-provenance guard: every digit sequence and spelled-out number word in the copy must correspond to a value in the input facts, else the copy is rejected and a deterministic fallback template renders. The guard enforces provenance (no number can originate from the LLM), not claim-binding; binding correctness comes from keeping ExplanationFacts minimal and per-result. |
+| 2. The AI interprets, the engine computes | LLM calls exist in exactly two modules — `parser` (user words → visible TripIntent values, Zod-gated, then deterministically canonicalized) and `prose` (ExplanationFacts → copy) — enforced by the repo-wide allowlist guard. A parser value such as Travelers: 3 may be a traceable interpretation of three named people; it is not a generated availability fact. Every price, duration, rank, comparison, and other result number is deterministic. `prose` output passes a number-provenance guard: every digit sequence and spelled-out number word in the copy must correspond to a value in the input facts, else the copy is rejected and a deterministic fallback template renders. |
 | 3. Conversation edits state, not history | The parser signature `(currentIntent, utterance) => ParseResult` is the whole memory model — there is no chat log anywhere in the system, and `unhandled` is transient beside the intent. Full-state re-emission means unmentioned fields are preserved by instruction and **asserted by the fixture suite** (deep equality on the complete intent, made fair by canonicalization). IntentDiff is computed by `engine/diff.ts` over normalized states, never emitted by the model. |
 | 4. Speed should feel alive | Sequential pipeline with an explicit latency budget (above). `availability` is interface-first with per-source latency simulation streamed over a real ReadableStream. Ranking is incremental and stable in `engine/rank.ts` so re-ranks are legible, not jumpy. |
 
@@ -150,30 +159,36 @@ interface IntentParser {
 }
 
 interface ResultExplainer {
-  explain(facts: ExplanationFacts): Promise<Explanation>
+  explain(facts: ExplanationFacts): Promise<
+    Explanation | { source: 'budget_exhausted' }
+  >
 }
 ```
 
 The OpenAI `IntentParser` is constructed with a request-scoped
-`ParserContext { today, supportedPlaces }` (the registry, versioned in
-`schema/places.ts`) so relative dates ("in feb") resolve against explicit, testable
-inputs and the prompt only ever offers places the simulation knows. The default origin
-is **not** parser context — it belongs to the engine's normalize config, because the
-parser never uses it.
+`ParserContext { today, supportedPlaces, airportAliases }` (the registry and aliases,
+versioned in `schema/places.ts`) so relative dates ("in feb") resolve against explicit,
+testable inputs and the prompt only ever offers places and airport names the simulation
+knows. The default origin is **not** parser context — it belongs to the engine's
+normalize config, because the parser never uses it.
 
 The parser returns raw, pre-canonicalization `ParseResult` and owns all model-mistake
 retries. Invalid JSON, Zod failures, and registry-membership failures get at most one
 feedback retry; the SDK separately gets one transport retry. Exhaustion throws typed
-`ParserError` with reason `invalid_output` or `transport`. Hostile identity output is
-valid and never retried. Refusal and token-cutoff are parse failures, not malformed JSON
-to retry blindly. The parser duplicates the seven-entry membership lookup rather than
-importing engine normalization; ADR 0006 records why.
+`ParserError` with reason `invalid_output`, `transport`, or `budget_exhausted`. The API
+maps those to 422, 502, and the public `demo_budget_exhausted` 503 response respectively.
+Hostile identity output is valid and never retried. Refusal and token-cutoff are parse
+failures, not malformed JSON to retry blindly. The parser duplicates the versioned
+registry membership lookup rather than importing engine normalization; ADR 0006 records
+why.
 
 The OpenAI `ResultExplainer` receives only pre-rendered numeric strings derived from
 `ExplanationFacts`; the model quotes those values rather than formatting or converting
 them. It has no feedback retry: empty, oversized, rejected, or failed prose falls back
 immediately to a deterministic template because prose is decorative while parsing is
-load-bearing. The result carries `source: 'model' | 'fallback'` for observability.
+load-bearing. The result carries `source: 'model' | 'fallback'` for observability. An
+exhausted provider quota is the one non-prose outcome: it returns
+`source: 'budget_exhausted'` so the route can expose the public 503 budget boundary.
 
 Hostile or nonsense input degrades to identity: an utterance that is primarily a
 meta-instruction (prompt injection, out-of-domain demands, gibberish) re-emits
@@ -192,16 +207,24 @@ the feedback-retry path.
   constraint. Normalize (canonicalization + assumption-fill), diff, gaps, filter, rank,
   pricing, explain-facts all covered directly.
 - `parser`: the committed fixture set (`src/lib/parser/fixtures.ts`) is the product
-  requirement from PRD §6. The runner asserts, per fixture: (a) deep equality of
+  requirement from PRD §6. It currently contains 47 canonical fixtures expanded into
+  59 deterministic evaluation cases; 19 canonical challenge fixtures expand to 31
+  strict challenge cases. Curated variants inherit the canonical fixture's complete
+  expected state, while minimal-pair fixtures carry their own deliberately different
+  expectations. The runner asserts, per case: (a) deep equality of
   `canonicalizePlaces(parsed)` against the **full** expected intent — preservation of
   unmentioned fields is structurally asserted, not spot-checked; (b) that
   `computeIntentDiff(currentIntent, result)` touches exactly the expected changed-field
-  set; and (c) `unhandled` null-ness matches its expectation. Assumption-filling is deliberately not applied in the runner: fixtures pin the
+  set; and (c) `unhandled` null-ness matches its expectation. Assumption-filling is deliberately not applied in the runner: cases pin the
   parser stage (origin stays null on a first query); the fill is engine-tested
-  separately. `pnpm eval` runs five live reps per fixture and reports retry rate,
+  separately. `pnpm eval` runs five live reps per expanded case and reports retry rate,
   p50/p95 latency, and soft wording matches. Correctness requires at least 4/5 reps, or
-  5/5 for hostile fixtures. The networked eval spends money and never runs in CI;
-  fixture self-consistency remains model-independent.
+  5/5 for hostile fixtures. The challenge tier (`pnpm eval -- --challenge`) rejects
+  runs below five reps, requires every rep to pass, and requires non-null `unhandled`
+  to equal the expected phrase after Unicode, case, and punctuation normalization;
+  failed reps print their exact intent, diff, or
+  unhandled mismatch. The networked eval spends money and never runs in CI; fixture
+  self-consistency remains model-independent.
 - `availability`: seeded simulation, deterministic assertions on batch ordering and
   latency shape.
 - `prose`: deterministic renderer and guard tests plus offline adapter tests. Several

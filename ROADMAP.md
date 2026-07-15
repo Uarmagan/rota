@@ -10,11 +10,16 @@ items from Open decisions into the schema/PRD and note the choice inline.
   schema is considered frozen for MVP (D1 `priority`, D2 `ParseResult`/`unhandled` +
   `GapOutcome`, D3 single-airport registry, D4 defaults, D5 exploratory follow-up).
   Typecheck + 70 tests green.
-- **Done:** M1 parser (2026-07-10): parser seam, retry policy, direct `@ai-sdk/openai`
-  with default `gpt-5.6-luna`, few-shot prompt, 25 fixtures, `pnpm eval`. Live eval
-  passed 25/25 fixtures (125/125 reps, 0 retries, ~1.05s p50) after one eval-driven
-  policy flip (`next <weekday>`, below).
-- **Done:** M2 deterministic engine (2026-07-10): filtering, ranking, award pricing,
+- **Done:** M1 parser (2026-07-10; challenge hardening 2026-07-14): parser seam,
+  retry policy, direct `@ai-sdk/openai` with default `gpt-5.6-luna`, few-shot prompt,
+  and `pnpm eval`. The corpus now has 47 canonical fixtures and 59 expanded eval
+  cases; the strict tier has 19 canonical fixtures and 31 expanded cases.
+  The original live eval passed 25/25 fixtures (125/125 reps, 0 retries, ~1.05s p50);
+  the post-hardening full corpus passed 38/38 (190/190 reps, 0 retries,
+  0.96–1.22s per-fixture p50) after eval-driven grammar-vs-place, representable-clue,
+  and correction-policy fixes. The expanded strict matrix passed 31/31 cases
+  (155/155 reps, 0 retries) on 2026-07-14.
+- **Done:** M2 deterministic engine (2026-07-10): filtering, ranking, pricing,
   explanation facts, local-clock helpers, and visible defaults. All 54 focused engine
   tests pass.
 - **Done:** M3 simulated availability (2026-07-10): four deterministic fictional
@@ -23,7 +28,9 @@ items from Open decisions into the schema/PRD and note the choice inline.
 - **Done:** M4 API routes + prose (2026-07-11): three thin handlers, raw-batch SSE,
   guarded result prose, and deterministic fallback. The full suite passes 268 tests
   across 25 files.
-- **Current:** M5 UI.
+- **Current:** M7 demo hardening. Strict parser challenge coverage is implemented;
+  the end-to-end demo walkthrough and hostile-input behavior through the real UI
+  remain.
 
 ## Open decisions
 
@@ -51,12 +58,13 @@ Blocking M1 (the parser prompt is built around the schema, so these change its c
 
 Non-blocking, decided before freezing the schema:
 
-- [x] **D3 — Multi-airport metros.** DECIDED: one airport per city for MVP; dropped HND
+- [x] **D3 — Multi-airport metros.** DECIDED for M0: one airport per city for MVP; dropped HND
       so every city resolves unambiguously (no soft LLM airport choice). Multi-airport
       metro codes (TYO expanded to member airports at search) deferred to phase 2 — the
       abstraction is disproportionate when only Tokyo ever had two airports, and no
       demo-path utterance needs it. See docs/adr/0003. (PLACES_VERSION bumped to
-      2026-07-10.1.)
+      2026-07-10.1.) Superseded in M6 by ADR 0008: registry-order bare-city
+      resolution now supports multiple airports without adding metro codes.
 - [x] **D4 — Generalize `assumed` beyond origin?** DECIDED: no. Three field states —
       stated, assumed, defaulted. Unstated cabin/travelers are FILLED in normalization
       (economy, 1) and shown as plain editable chips, so nothing is silently decided
@@ -85,13 +93,14 @@ The LLM boundary for words → TripIntent.
 - [x] `IntentParser` returning `ParseResult` + direct OpenAI implementation
       (`generateText` + `Output.object`, model from `ROTA_MODEL`)
 - [x] System prompt: full-state re-emission rules, ParserContext (today +
-      supportedPlaces), hostile-input identity policy
+      supportedPlaces + versioned airport aliases), hostile-input identity policy
 - [x] Parse wrapper: Zod gate + registry-membership gate → one feedback retry;
       canonicalization remains the next engine pipeline step
 - [x] Live-model eval script running the fixture suite (`pnpm eval`), reusing the
       fixture assertions
-- [x] Expand fixtures to the PRD's 20–25: typos, relative dates ("next friday"),
-      more refinement-against-state, contradiction, more hostile
+- [x] Maintain a core fixture corpus plus strict challenge cases: typos, relative
+      dates, refinement-against-state, contradiction, hostile input, named-party
+      inference, fragments, and compositional corrections
 - **Done when:** eval passes the full fixture set against the default model, and the
   self-consistency suite still passes without network.
 
@@ -100,7 +109,9 @@ The LLM boundary for words → TripIntent.
 - Parser returns raw, pre-canonicalization `ParseResult` and never imports engine.
 - One feedback retry covers validation and membership; the SDK owns transport retry.
 - OpenAI is called directly; default model is `gpt-5.6-luna` at lowest reasoning.
-- Prompt uses four held-out examples disjoint from the fixture utterances.
+- Prompt uses four full input/output examples disjoint from the fixture utterances;
+  concise inline policy illustrations may clarify semantics but stay disjoint from
+  strict challenge cases.
 - The model resolves relative dates; Zod refinements remain the hard date gate.
 - Eval runs five reps; hostile fixtures require 5/5 and all others at least 4/5.
 - Unsupported cities become `unhandled` with a null place, never a fabricated IATA.
@@ -116,12 +127,12 @@ The LLM boundary for words → TripIntent.
 The deterministic core over flight data. Pure TS, no mocks.
 
 - [x] `types.ts`: `FlightOption` (segments, times, duration, stops, cabin, source,
-      award price) + `ExplanationFacts`
+      cash price) + `ExplanationFacts`
 - [x] `filter.ts`: apply all TripIntent constraints (incl. `avoidLateArrival` /
       red-eye windows — engine defines 00:00–05:00 local)
 - [x] `rank.ts`: scoring + best-match, stable under incremental batches
       (nonstop 'preferred' boosts, 'required' filters)
-- [x] `pricing.ts`: award pricing math (miles + fees) from generator inputs
+- [x] `pricing.ts`: cash party-total math from generator inputs
 - [x] `explain.ts`: computed comparisons within the result set
 - **Done when:** every module unit-tested; import-boundary guard still green.
 
@@ -198,15 +209,35 @@ The deterministic core over flight data. Pure TS, no mocks.
   library was added. Reconsider a shared primitive only with a broader design-system
   need, not for these field editors alone.
 
-## M6 — Demo hardening
+## M6 — Google-Flights pivot
 
+- [x] Expand the versioned registry with registry-order metro resolution
+- [x] Generate real airline identities on labeled simulated inventory
+- [x] Derive route durations from airport geometry and static UTC offsets
+- [x] Replace points pricing with whole-dollar cash fares and party totals
+- [x] Preserve deterministic ranking, prose number provenance, and API contracts
+- [x] Relayout the UI as a merged ranked list with airline rows and a persistent
+      simulated-data label (2026-07-14): one rank-ordered list that FLIPs rows to
+      their new position on re-rank, airline names + flight numbers from segment
+      codes, price-forward rows, expandable itinerary details with layovers, and
+      a stream-status header (options · hidden-by-filters · sources answered).
+- **Status:** Done (2026-07-14). Full suite green (364 tests, incl. jsdom
+  interaction tests for the results list). Remaining by-hand demo walkthrough
+  belongs to M7.
+
+## M7 — Demo hardening
+
+- [x] Maintain a strict parser challenge tier (19 canonical fixtures, 31 expanded
+      cases) for named-party inference, named airports, noisy fragments, metamorphic
+      wording families, role/count minimal pairs, self-correction, explicit waivers,
+      and unsupported place qualifiers
 - [ ] Walk the demo path against the success criteria: first result <3s, three-utterance
       refinement journey, zero LLM numbers (guard verified in an e2e pass)
 - [ ] Graceful degradation pass on hostile fixtures through the real UI
-- [ ] README with run instructions
+- [x] README with run instructions and a verified live-demo screenshot (2026-07-14)
 - **Done when:** a first-time viewer understands it in one query, no narration.
 
 ## Explicitly parked (phase 2, per PRD)
 
-Points-intelligence layer, real availability, round-trip/multi-city, accounts, full
-eval-harness reporting, hotels/cars, mobile-native.
+Points-intelligence layer, real availability, round-trip/multi-city, accounts, hosted
+eval dashboards and longitudinal reporting, hotels/cars, mobile-native.

@@ -3,7 +3,7 @@ import type { ExplanationFacts } from '../engine/types'
 import {
   fallbackLine,
   formatDuration,
-  formatMiles,
+  formatUsd,
   renderComparison,
   renderFacts,
 } from './render'
@@ -12,11 +12,7 @@ const facts: ExplanationFacts = {
   optionId: 'option-1',
   stops: 0,
   totalDurationMinutes: 815,
-  price: {
-    totalMiles: 145000,
-    totalFeesUsd: 96,
-    program: 'Meridian Elite',
-  },
+  price: { totalUsd: 1450 },
   isBestMatch: true,
   isCheapest: false,
   isFastest: false,
@@ -33,8 +29,8 @@ describe('prose renderers', () => {
     expect(formatDuration(815)).toBe('13h 35m')
   })
 
-  it('groups miles for display', () => {
-    expect(formatMiles(145000)).toBe('145,000')
+  it('groups whole-dollar prices for display', () => {
+    expect(formatUsd(1450)).toBe('$1,450')
   })
 
   it('renders comparison signs in both directions', () => {
@@ -43,17 +39,17 @@ describe('prose renderers', () => {
         stopsDelta: 1,
         durationDeltaMinutes: 130,
         arrivalDeltaMinutes: -360,
-        totalMilesDelta: 8000,
+        totalUsdDelta: 80,
       }),
-    ).toBe('1 more stop; 2h 10m slower; arrives 6h earlier; 8,000 more miles')
+    ).toBe('1 more stop; 2h 10m slower; arrives 6h earlier; $80 more')
     expect(
       renderComparison({
         stopsDelta: -2,
         durationDeltaMinutes: -45,
         arrivalDeltaMinutes: 15,
-        totalMilesDelta: -12000,
+        totalUsdDelta: -120,
       }),
-    ).toBe('2 fewer stops; 45m faster; arrives 15m later; 12,000 fewer miles')
+    ).toBe('2 fewer stops; 45m faster; arrives 15m later; $120 cheaper')
   })
 
   it('omits null and false fact lines', () => {
@@ -61,7 +57,7 @@ describe('prose renderers', () => {
       [
         'stops: nonstop',
         'duration: 13h 35m',
-        'price: 145,000 miles + $96 (Meridian Elite)',
+        'price: $1,450 total',
         'badges: best match',
       ].join('\n'),
     )
@@ -80,17 +76,17 @@ describe('prose renderers', () => {
           stopsDelta: 0,
           durationDeltaMinutes: 0,
           arrivalDeltaMinutes: 0,
-          totalMilesDelta: 0,
+          totalUsdDelta: 0,
         },
       }),
     ).toContain(
-      'badges: best match, cheapest, fastest\narrive-by deadline: 17:00\nnonstop required: yes\nvs cheapest: same stops; same duration; arrives at the same time; same miles',
+      'badges: best match, cheapest, fastest\narrive-by deadline: 17:00\nnonstop required: yes\nvs cheapest: same stops; same duration; arrives at the same time; same price',
     )
   })
 
   it('renders exact deterministic fallback lines', () => {
     expect(fallbackLine(facts)).toBe(
-      'Best match for your search. Nonstop, 13h 35m, 145,000 miles + $96.',
+      'Best match for your search. Nonstop, 13h 35m, $1,450 total.',
     )
     expect(
       fallbackLine({
@@ -100,7 +96,7 @@ describe('prose renderers', () => {
         isCheapest: true,
       }),
     ).toBe(
-      'The cheapest option in this set. 1 stop, 13h 35m, 145,000 miles + $96.',
+      'The cheapest option in this set. 1 stop, 13h 35m, $1,450 total.',
     )
   })
 })

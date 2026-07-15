@@ -21,13 +21,36 @@ import {
   createEmptyTripIntent,
   type TripIntent,
 } from '../../lib/schema/trip-intent'
+import {
+  DEMO_API_ERROR_CODES,
+  isDemoApiErrorCode,
+  type DemoApiErrorCode,
+} from '../../lib/server/demo-api-errors'
 import { ChipsRow, PromptChip, type ChipAnimation } from './chips'
-import { Results, type SourceView } from './results'
+import { Results } from './results'
 import { searchStream } from './stream'
 
 type ParseOutcome =
   | { ok: true; intent: TripIntent; gap: GapOutcome }
-  | { ok: false; message: string }
+  | { ok: false; error: AppError }
+
+type AppError =
+  | { kind: 'message'; message: string }
+  | { kind: 'budget_exhausted' }
+
+const DEMO_LIMIT_ERROR = {
+  kind: 'message',
+  message: 'Demo limit reached. Try again in a few minutes.',
+} satisfies AppError
+
+const BUDGET_EXHAUSTED_ERROR = {
+  kind: 'budget_exhausted',
+} satisfies AppError
+
+const PARSER_UNAVAILABLE_ERROR = {
+  kind: 'message',
+  message: 'Trouble reaching the parser. Try again in a moment.',
+} satisfies AppError
 
 interface WhyLine {
   optionId: string
@@ -45,7 +68,7 @@ export function SearchApp() {
   const [streaming, setStreaming] = useState(false)
   const [batches, setBatches] = useState<readonly SourceBatch[]>([])
   const [why, setWhy] = useState<WhyLine | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<AppError | null>(null)
   const [text, setText] = useState('')
   const parseAbortRef = useRef<AbortController | null>(null)
   const parseRun = useRef(0)
@@ -107,7 +130,7 @@ export function SearchApp() {
     if (result === null || parseRun.current !== run || controller.signal.aborted) return
     setParsing(false)
     if (!result.ok) {
-      setError(result.message)
+      setError(result.error)
       setText(utterance)
       return
     }
@@ -143,7 +166,10 @@ export function SearchApp() {
     } catch {
       if (controller.signal.aborted || searchRun.current !== run) return
       setStreaming(false)
-      setError('The search stream dropped — try again.')
+      setError({
+        kind: 'message',
+        message: 'The search stream dropped. Try again.',
+      })
     }
   }
 
@@ -165,7 +191,20 @@ export function SearchApp() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ facts }),
       })
-      if (!response.ok || searchRun.current !== run) return
+      if (searchRun.current !== run) return
+      if (response.status === 429) {
+        setError(DEMO_LIMIT_ERROR)
+        return
+      }
+      if (
+        response.status === 503 &&
+        (await responseErrorCode(response)) ===
+          DEMO_API_ERROR_CODES.budgetExhausted
+      ) {
+        setError(BUDGET_EXHAUSTED_ERROR)
+        return
+      }
+      if (!response.ok) return
       const explanation = (await response.json()) as { text: string }
       setWhy({ optionId: best.id, text: explanation.text })
     } catch {
@@ -178,29 +217,12 @@ export function SearchApp() {
     intent !== null && intent.destination !== null && intent.dates !== null
   const options = batches.flatMap((batch) => batch.options)
   const filtered = searchable && options.length > 0 ? filterOptions(intent, options) : []
-  const best = searchable ? bestMatch(rankOptions(intent, filtered)) : null
-  const filteredIds = new Set(filtered.map((option) => option.id))
+  const ranked = searchable ? rankOptions(intent, filtered) : []
+  const best = bestMatch(ranked)
   const showResults = searchable && (streaming || batches.length > 0)
-
-  const sourceViews: SourceView[] = SIMULATED_SOURCES.map(({ id, program }) => {
-    const sourceBatches = batches.filter((batch) => batch.source === id)
-    const sourceOptions = sourceBatches.flatMap((batch) => batch.options)
-    const visible = sourceOptions.filter((option) => filteredIds.has(option.id))
-    const status: SourceView['status'] = sourceBatches.some((batch) => batch.isFinal)
-      ? 'done'
-      : sourceBatches.length > 0
-        ? 'partial'
-        : streaming
-          ? 'searching'
-          : 'done'
-    return {
-      id,
-      program,
-      options: visible,
-      hidden: sourceOptions.length - visible.length,
-      status,
-    }
-  })
+  const sourcesDone = new Set(
+    batches.filter((batch) => batch.isFinal).map((batch) => batch.source),
+  ).size
 
   return (
     <div className="min-h-screen bg-[#0b0b0f] text-neutral-200 antialiased">
@@ -215,7 +237,7 @@ export function SearchApp() {
               Rota
             </p>
             <p className="mb-6 text-center text-xs text-neutral-600">
-              Say it like you&rsquo;d say it to a person.
+              Describe what you need in your own words.
             </p>
           </>
         )}
@@ -239,7 +261,7 @@ export function SearchApp() {
               <span className="text-xs text-neutral-500">
                 {gap?.kind === 'follow_up'
                   ? gap.question
-                  : 'Add dates to search — try “in february”.'}
+                  : 'Add dates to search. Try “in february”.'}
               </span>
             </div>
           )}
@@ -264,8 +286,8 @@ export function SearchApp() {
               onChange={(event) => setText(event.target.value)}
               placeholder={
                 hasIntent
-                  ? 'refine — “actually business class, nonstop if possible”'
-                  : 'describe your trip — “tokyo in feb for 2”'
+                  ? 'refine: “actually business class, nonstop if possible”'
+                  : 'describe your trip: “tokyo in feb for 2”'
               }
               className="w-full bg-transparent py-3.5 text-[15px] text-neutral-100 placeholder-neutral-600 outline-none"
             />
@@ -278,22 +300,42 @@ export function SearchApp() {
         </div>
 
         {error !== null && (
-          <p className="mt-3 px-1 text-xs text-rose-300/90">{error}</p>
+          <p className="mt-3 px-1 text-xs text-rose-300/90" role="alert">
+            {error.kind === 'budget_exhausted' ? (
+              <>
+                Live AI is paused because this month&rsquo;s demo budget has been
+                used. Want to try natural-language search?{' '}
+                <a
+                  className="underline decoration-rose-300/40 underline-offset-2 hover:decoration-rose-200"
+                  href="mailto:ugurarmagan93@gmail.com?subject=Rota%20demo%20budget"
+                >
+                  Email me
+                </a>{' '}
+                and I&rsquo;ll top it up.
+              </>
+            ) : (
+              error.message
+            )}
+          </p>
         )}
 
         {showResults && filtered.length === 0 && options.length > 0 && !streaming && (
           <p className="mt-6 text-sm text-neutral-500">
-            All {options.length} options are hidden by your filters — try
+            All {options.length} options are hidden by your filters. Try
             relaxing one.
           </p>
         )}
 
         {showResults && (
           <Results
-            sources={sourceViews}
+            options={ranked.map(({ option }) => option)}
             travelers={intent.travelers ?? 1}
             bestId={best?.id ?? null}
             why={why}
+            streaming={streaming}
+            sourcesDone={sourcesDone}
+            sourcesTotal={SIMULATED_SOURCES.length}
+            hidden={options.length - filtered.length}
           />
         )}
       </div>
@@ -317,18 +359,39 @@ async function requestParse(
       const body = (await response.json()) as { intent: TripIntent; gap: GapOutcome }
       return { ok: true, intent: body.intent, gap: body.gap }
     }
+    if (response.status === 429) {
+      return { ok: false, error: DEMO_LIMIT_ERROR }
+    }
+    if (
+      response.status === 503 &&
+      (await responseErrorCode(response)) ===
+        DEMO_API_ERROR_CODES.budgetExhausted
+    ) {
+      return { ok: false, error: BUDGET_EXHAUSTED_ERROR }
+    }
     return {
       ok: false,
-      message:
-        response.status === 422
-          ? 'I couldn’t turn that into a search — mind rephrasing?'
-          : 'Trouble reaching the parser — try again in a moment.',
+      error: {
+        kind: 'message',
+        message:
+          response.status === 422
+            ? 'I couldn’t turn that into a search. Mind rephrasing?'
+            : PARSER_UNAVAILABLE_ERROR.message,
+      },
     }
   } catch {
     if (signal.aborted) return null
-    return {
-      ok: false,
-      message: 'Trouble reaching the parser — try again in a moment.',
-    }
+    return { ok: false, error: PARSER_UNAVAILABLE_ERROR }
+  }
+}
+
+async function responseErrorCode(
+  response: Response,
+): Promise<DemoApiErrorCode | null> {
+  try {
+    const body = (await response.json()) as { error?: unknown }
+    return isDemoApiErrorCode(body.error) ? body.error : null
+  } catch {
+    return null
   }
 }

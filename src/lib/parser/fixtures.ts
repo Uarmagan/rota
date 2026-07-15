@@ -1,5 +1,10 @@
 import type { IntentField } from '../schema/intent-diff'
-import { PLACES_VERSION, SUPPORTED_PLACES } from '../schema/places'
+import {
+  PLACES_VERSION,
+  SUPPORTED_PLACES,
+  airportAliasesForPlaces,
+  type AirportAliasMap,
+} from '../schema/places'
 import {
   createEmptyTripIntent,
   type Place,
@@ -37,11 +42,17 @@ import {
 // injection, out-of-domain demands, gibberish) degrades to identity — re-emit
 // currentIntent unchanged, empty diff. Hostile fixtures must include schema-VALID
 // requested mutations: Zod rejection must never be what masks a policy failure.
+//
+// Challenge fixtures are the smaller demo-hardening tier. `pnpm eval -- --challenge`
+// runs only these cases; unlike ordinary fixtures, the runner requires at least five
+// reps, every rep must pass, and non-null unhandled text must equal the complete
+// expected clause after Unicode, case, and punctuation normalization.
 
 export interface ParserFixtureContext {
   today: string // ISO date, YYYY-MM-DD
   placesVersion: string
   supportedPlaces: readonly Place[]
+  airportAliases: AirportAliasMap
 }
 
 export type FixtureKind =
@@ -51,9 +62,15 @@ export type FixtureKind =
   | 'removal'
   | 'hostile'
 
+export interface ParserUtteranceVariant {
+  name: string
+  utterance: string
+}
+
 export interface ParserFixture {
   name: string
   kind: FixtureKind
+  challenge?: true
   description: string
   context: ParserFixtureContext
   currentIntent: TripIntent
@@ -61,15 +78,68 @@ export interface ParserFixture {
   expected: TripIntent
   expectedUnhandled: string | null
   expectedChangedFields: readonly IntentField[]
+  variants?: readonly ParserUtteranceVariant[]
+}
+
+export type ParserEvaluationCase = Omit<ParserFixture, 'variants'> & {
+  canonicalName: string
+}
+
+export function expandParserFixtures(
+  fixtures: readonly ParserFixture[],
+): readonly ParserEvaluationCase[] {
+  const cases: ParserEvaluationCase[] = []
+  const names = new Set<string>()
+
+  for (const fixtureWithVariants of fixtures) {
+    const { variants = [], ...fixture } = fixtureWithVariants
+    const expanded = [
+      { ...fixture, canonicalName: fixture.name },
+      ...variants.map((variant) => ({
+        ...fixture,
+        canonicalName: fixture.name,
+        name: `${fixture.name}::${variant.name}`,
+        utterance: variant.utterance,
+      })),
+    ]
+    for (const evaluationCase of expanded) {
+      if (names.has(evaluationCase.name)) {
+        throw new Error(`Duplicate parser evaluation case: ${evaluationCase.name}`)
+      }
+      names.add(evaluationCase.name)
+      cases.push(evaluationCase)
+    }
+  }
+
+  return cases
 }
 
 const CONTEXT: ParserFixtureContext = {
   today: '2026-07-09',
   placesVersion: PLACES_VERSION,
   supportedPlaces: SUPPORTED_PLACES,
+  airportAliases: airportAliasesForPlaces(SUPPORTED_PLACES),
+}
+
+const LEGACY_PLACES = [
+  { iata: 'ORD', city: 'Chicago' },
+  { iata: 'SFO', city: 'San Francisco' },
+  { iata: 'JFK', city: 'New York' },
+  { iata: 'NRT', city: 'Tokyo' },
+  { iata: 'LIS', city: 'Lisbon' },
+  { iata: 'LHR', city: 'London' },
+  { iata: 'CDG', city: 'Paris' },
+] as const satisfies readonly Place[]
+
+const LEGACY_CONTEXT: ParserFixtureContext = {
+  today: '2026-07-09',
+  placesVersion: '2026-07-10.1',
+  supportedPlaces: LEGACY_PLACES,
+  airportAliases: airportAliasesForPlaces(LEGACY_PLACES),
 }
 
 const TOKYO = { iata: 'NRT', city: 'Tokyo' }
+const HANEDA = { iata: 'HND', city: 'Tokyo' }
 const LISBON = { iata: 'LIS', city: 'Lisbon' }
 const LONDON = { iata: 'LHR', city: 'London' }
 const PARIS = { iata: 'CDG', city: 'Paris' }
@@ -105,6 +175,21 @@ const NO_CONSTRAINTS = {
   avoidRedeye: null,
   avoidLateArrival: null,
 } as const
+const DENSE_CURRENT: TripIntent = {
+  travelers: 2,
+  origin: { iata: 'ORD', city: 'Chicago', assumed: true },
+  destination: TOKYO,
+  cabin: 'business',
+  dates: FEB_2027,
+  priority: 'fastest',
+  constraints: {
+    nonstop: 'required',
+    arriveBy: '17:00',
+    departAfter: '09:00',
+    avoidRedeye: true,
+    avoidLateArrival: true,
+  },
+}
 
 export const parserFixtures: readonly ParserFixture[] = [
   {
@@ -130,6 +215,125 @@ export const parserFixtures: readonly ParserFixture[] = [
     },
     expectedUnhandled: null,
     expectedChangedFields: ['destination', 'dates'],
+  },
+  {
+    name: 'specific-airport-over-metro',
+    kind: 'initial',
+    description:
+      'A named secondary airport resolves specifically while a bare metro name ' +
+      'uses the first listed airport for that city.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'from newark to london in march',
+    expected: {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'EWR', city: 'Newark', assumed: false },
+      destination: LONDON,
+      dates: MARCH_2027,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['origin', 'destination', 'dates'],
+  },
+  {
+    name: 'metro-secondary-airport',
+    kind: 'refinement',
+    description:
+      'A named airport refinement replaces only the origin while preserving ' +
+      'the complete normalized trip intent.',
+    context: CONTEXT,
+    currentIntent: {
+      travelers: 1,
+      origin: { iata: 'JFK', city: 'New York', assumed: false },
+      destination: LONDON,
+      cabin: 'economy',
+      dates: MARCH_2027,
+      priority: null,
+      constraints: NO_CONSTRAINTS,
+    },
+    utterance: 'actually fly out of laguardia',
+    expected: {
+      travelers: 1,
+      origin: { iata: 'LGA', city: 'New York', assumed: false },
+      destination: LONDON,
+      cabin: 'economy',
+      dates: MARCH_2027,
+      priority: null,
+      constraints: NO_CONSTRAINTS,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['origin'],
+  },
+  {
+    name: 'haneda-versus-bare-tokyo',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'A named Tokyo airport resolves to HND while the bare destination city ' +
+      'still follows registry order to NRT.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'from Haneda to Tokyo in March',
+    expected: {
+      ...createEmptyTripIntent(),
+      origin: { ...HANEDA, assumed: false },
+      destination: TOKYO,
+      dates: MARCH_2027,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['origin', 'destination', 'dates'],
+  },
+  {
+    name: 'gatwick-versus-bare-london',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'A named London airport resolves to LGW while bare London remains LHR.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'Gatwick to London this October',
+    expected: {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'LGW', city: 'London', assumed: false },
+      destination: LONDON,
+      dates: OCT_2026,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['origin', 'destination', 'dates'],
+  },
+  {
+    name: 'midway-versus-bare-chicago',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'A named Chicago airport resolves to MDW while bare Chicago remains ORD.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'fly from Midway to Chicago in November',
+    expected: {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'MDW', city: 'Chicago', assumed: false },
+      destination: { iata: 'ORD', city: 'Chicago' },
+      dates: NOV_2026,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['origin', 'destination', 'dates'],
+  },
+  {
+    name: 'named-airport-dense-refinement',
+    kind: 'refinement',
+    challenge: true,
+    description:
+      'A named-airport origin refinement changes only the route endpoint and ' +
+      'preserves every dense trip field.',
+    context: CONTEXT,
+    currentIntent: DENSE_CURRENT,
+    utterance: 'change my departure airport to Haneda',
+    expected: {
+      ...DENSE_CURRENT,
+      origin: { ...HANEDA, assumed: false },
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['origin'],
   },
   {
     name: 'rich-query-origin-left-null',
@@ -540,8 +744,9 @@ export const parserFixtures: readonly ParserFixture[] = [
     description:
       'A stated city we do not serve is recognized-but-unsupported and becomes ' +
       'unhandled, never a hallucinated IATA or parse failure. Destination stays ' +
-      'null so the missing-destination follow-up absorbs the echo (D2/D5/D7).',
-    context: CONTEXT,
+      'null so the missing-destination follow-up absorbs the echo (D2/D5/D7). ' +
+      'This fixture keeps its original seven-place context, where Berlin is absent.',
+    context: LEGACY_CONTEXT,
     currentIntent: createEmptyTripIntent(),
     utterance: 'to berlin in august',
     expected: {
@@ -740,4 +945,405 @@ export const parserFixtures: readonly ParserFixture[] = [
     expectedUnhandled: null,
     expectedChangedFields: ['destination', 'dates'],
   },
+  {
+    name: 'named-travelers-telegraphic',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'A bare list of three names beside fragmentary trip details is still a clear ' +
+      'traveling party. The parser counts three occupied seats without treating ' +
+      'the names as unsupported text or inventing any other state.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'Maya, Liam, and Noah. Tokyo in February.',
+    variants: [
+      {
+        name: 'no-punctuation',
+        utterance: 'Zara plus Theo plus Nina traveling to NRT next February',
+      },
+      {
+        name: 'reordered-fragments',
+        utterance: 'Tokyo next February. Travelers: Elena, Omar, Kai.',
+      },
+    ],
+    expected: {
+      ...createEmptyTripIntent(),
+      travelers: 3,
+      destination: TOKYO,
+      dates: FEB_2027,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['travelers', 'destination', 'dates'],
+  },
+  {
+    name: 'mentioned-person-is-not-a-traveler',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'A person mentioned as the recommender is context, not part of the traveling ' +
+      'party. Only the speaker and Lee count, preventing a plausible but wrong ' +
+      'three-traveler chip.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'Maya recommended Tokyo in February for me and Lee.',
+    expected: {
+      ...createEmptyTripIntent(),
+      travelers: 2,
+      destination: TOKYO,
+      dates: FEB_2027,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['travelers', 'destination', 'dates'],
+  },
+  {
+    name: 'named-spouse-counted-once',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'A relationship and appositive name describe one companion, so the speaker ' +
+      'and wife occupy two seats rather than three.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'Tokyo in February for me and my wife Maya.',
+    expected: {
+      ...createEmptyTripIntent(),
+      travelers: 2,
+      destination: TOKYO,
+      dates: FEB_2027,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['travelers', 'destination', 'dates'],
+  },
+  {
+    name: 'recommender-excluded-from-party',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'A named recommender is not flying; only the explicitly ticketed speaker ' +
+      'and Lee count as travelers.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'Maya recommended London in October; tickets are for me and Lee.',
+    expected: {
+      ...createEmptyTripIntent(),
+      travelers: 2,
+      destination: LONDON,
+      dates: OCT_2026,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['travelers', 'destination', 'dates'],
+  },
+  {
+    name: 'person-at-destination-not-traveling',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'The speaker is flying alone to meet Maya, so Maya does not become a second ' +
+      'traveler merely because she is named beside the destination.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: "I'm flying to Tokyo in February to meet Maya.",
+    expected: {
+      ...createEmptyTripIntent(),
+      travelers: 1,
+      destination: TOKYO,
+      dates: FEB_2027,
+    },
+    expectedUnhandled: 'to meet Maya',
+    expectedChangedFields: ['travelers', 'destination', 'dates'],
+  },
+  {
+    name: 'place-names-without-travel-grammar',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'Place-like person names remain recommenders rather than an origin or party; ' +
+      'the recommended place alone becomes the destination.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'Paris and Austin suggested London.',
+    expected: {
+      ...createEmptyTripIntent(),
+      destination: LONDON,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['destination'],
+  },
+  {
+    name: 'unquantified-family-preserves-null',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'An unquantified collective does not provide a defensible occupied-seat ' +
+      'count, while the route and date clues still parse.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'family trip to Tokyo in February',
+    expected: {
+      ...createEmptyTripIntent(),
+      destination: TOKYO,
+      dates: FEB_2027,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['destination', 'dates'],
+  },
+  {
+    name: 'place-like-person-names',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'Grammar makes Paris and Austin traveler names here, not route fields. The ' +
+      'parser counts the two named people plus the speaker while keeping London ' +
+      'as the only destination and leaving origin unstated.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'Paris, Austin, and I are flying to London in October.',
+    variants: [
+      {
+        name: 'alternate-list-punctuation',
+        utterance: 'Milan; Berlin; and I are flying to LHR in Oct.',
+      },
+      {
+        name: 'destination-first',
+        utterance: 'Traveling to London this October: Sydney, Austin, and me.',
+      },
+    ],
+    expected: {
+      ...createEmptyTripIntent(),
+      travelers: 3,
+      destination: LONDON,
+      dates: OCT_2026,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['travelers', 'destination', 'dates'],
+  },
+  {
+    name: 'quantified-family-party',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'Party size composes singular relationships and a quantified group: the ' +
+      'speaker, one partner, and two children require four occupied seats. The ' +
+      'relationship words are count evidence, not text to echo.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'Paris in October for me, my partner, and our two kids.',
+    variants: [
+      {
+        name: 'named-appositive',
+        utterance: 'CDG in October for me, my partner Sam, and our two kids.',
+      },
+      {
+        name: 'group-first',
+        utterance: 'Our two kids, my partner, and I are going to Paris this October.',
+      },
+    ],
+    expected: {
+      ...createEmptyTripIntent(),
+      travelers: 4,
+      destination: PARIS,
+      dates: OCT_2026,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['travelers', 'destination', 'dates'],
+  },
+  {
+    name: 'named-party-self-correction',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'The first party list names four people, then excludes Priya in a later ' +
+      'self-correction. Later-clause-wins semantics applies to the inferred count ' +
+      'as well as ordinary intent fields, leaving three travelers.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance:
+      "Maya, Liam, Noah, and Priya to Tokyo in February — actually Priya can't make it.",
+    variants: [
+      {
+        name: 'staying-home-correction',
+        utterance:
+          'Elena, Omar, Kai, and Zoe to NRT next February — no, Zoe is staying home.',
+      },
+      {
+        name: 'without-correction',
+        utterance:
+          'Tokyo in feb for Iris, Jonah, Luca, and Mina; correction: without Mina.',
+      },
+    ],
+    expected: {
+      ...createEmptyTripIntent(),
+      travelers: 3,
+      destination: TOKYO,
+      dates: FEB_2027,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['travelers', 'destination', 'dates'],
+  },
+  {
+    name: 'party-join-plus-unhandled',
+    kind: 'refinement',
+    challenge: true,
+    description:
+      'A named traveler joining increments the existing party by one while a seat ' +
+      'preference remains visibly unhandled. Every dense route, date, ranking, and ' +
+      'constraint field must survive the refinement verbatim.',
+    context: CONTEXT,
+    currentIntent: DENSE_CURRENT,
+    utterance: "Priya's joining us, and she needs an aisle seat.",
+    variants: [
+      {
+        name: 'add-then-seat',
+        utterance: 'Add Mateo to the trip; aisle seat for him.',
+      },
+      {
+        name: 'seat-then-join',
+        utterance: 'Aisle seat for Elena, who is joining the trip.',
+      },
+    ],
+    expected: {
+      ...DENSE_CURRENT,
+      travelers: 3,
+    },
+    expectedUnhandled: 'aisle seat',
+    expectedChangedFields: ['travelers'],
+  },
+  {
+    name: 'compressed-itinerary-shorthand',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'A punctuation-free itinerary fragment maps seven terse clues into visible ' +
+      'chips: route direction, exact day, party size, cabin, ranking lean, and a ' +
+      'red-eye constraint. No prose scaffolding is required.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'sfo nrt oct 12 3 pax biz no redeyes cheapest',
+    variants: [
+      {
+        name: 'reordered-tokens',
+        utterance:
+          '3 pax biz October 12 cheapest no redeyes San Francisco to NRT',
+      },
+      {
+        name: 'harmless-filler',
+        utterance: 'okay SFO to Tokyo Oct 12 for 3 biz cheapest and no redeyes',
+      },
+    ],
+    expected: {
+      ...createEmptyTripIntent(),
+      travelers: 3,
+      origin: { iata: 'SFO', city: 'San Francisco', assumed: false },
+      destination: TOKYO,
+      cabin: 'business',
+      dates: {
+        earliest: '2026-10-12',
+        latest: '2026-10-12',
+        flexibility: 'exact',
+      },
+      priority: 'cheapest',
+      constraints: { ...NO_CONSTRAINTS, avoidRedeye: true },
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: [
+      'travelers',
+      'origin',
+      'destination',
+      'cabin',
+      'dates',
+      'priority',
+      'constraints.avoidRedeye',
+    ],
+  },
+  {
+    name: 'waive-one-clear-another',
+    kind: 'refinement',
+    challenge: true,
+    description:
+      'One short refinement exercises two different absence semantics: red-eyes ' +
+      'become explicitly allowed (false), while the nonstop requirement is removed ' +
+      'back to null. The other dense intent fields remain untouched.',
+    context: CONTEXT,
+    currentIntent: DENSE_CURRENT,
+    utterance: "Red-eyes are fine now, and nonstop doesn't matter anymore.",
+    expected: {
+      ...DENSE_CURRENT,
+      constraints: {
+        ...DENSE_CURRENT.constraints,
+        nonstop: null,
+        avoidRedeye: false,
+      },
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: [
+      'constraints.nonstop',
+      'constraints.avoidRedeye',
+    ],
+  },
+  {
+    name: 'qualified-unsupported-place',
+    kind: 'initial',
+    challenge: true,
+    description:
+      'The qualifier is meaning-bearing: Paris, Texas is not the supported Paris, ' +
+      'France airport. The parser keeps destination null, preserves the October ' +
+      'window, and echoes the unsupported place instead of silently choosing CDG.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'to Paris, Texas in October',
+    expected: {
+      ...createEmptyTripIntent(),
+      dates: OCT_2026,
+    },
+    expectedUnhandled: 'Paris, Texas',
+    expectedChangedFields: ['dates'],
+  },
+  {
+    name: 'destination-self-repair',
+    kind: 'initial',
+    description:
+      'Policy regression coverage: a conversational correction replaces the ' +
+      'first destination rather than creating ambiguity or losing the route. ' +
+      'Chicago remains the stated origin, ' +
+      'Paris wins as destination, and the October window survives.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'okay, Chicago to London in October — sorry, Paris.',
+    expected: {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'ORD', city: 'Chicago', assumed: false },
+      destination: PARIS,
+      dates: OCT_2026,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['origin', 'destination', 'dates'],
+  },
+  {
+    name: 'destination-replacement-fragment',
+    kind: 'refinement',
+    challenge: true,
+    description:
+      'A contrastive two-place fragment edits the destination in existing chip ' +
+      'state without restating a route or using a prompt-example correction marker. ' +
+      'Every dense non-destination field remains byte-for-byte unchanged.',
+    context: CONTEXT,
+    currentIntent: DENSE_CURRENT,
+    utterance: 'Lisbon instead of Tokyo.',
+    expected: {
+      ...DENSE_CURRENT,
+      destination: LISBON,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['destination'],
+  },
 ]
+
+export const parserEvaluationCases = expandParserFixtures(parserFixtures)
+
+export const parserFixtureCounts = Object.freeze({
+  canonical: parserFixtures.length,
+  expanded: parserEvaluationCases.length,
+  challengeCanonical: parserFixtures.filter((fixture) => fixture.challenge).length,
+  challengeExpanded: parserEvaluationCases.filter((fixture) => fixture.challenge)
+    .length,
+})

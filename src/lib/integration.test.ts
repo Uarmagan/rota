@@ -85,12 +85,11 @@ describe('availability to explanation integration', () => {
 
     const facts = explainOption(intent, filtered, best.id)
     expect(facts.isBestMatch).toBe(true)
-    expect(facts.price.totalMiles).toBe(2 * best.pricing.baseMiles)
-    expect(facts.price.totalFeesUsd).toBe(2 * best.pricing.feesUsd)
+    expect(facts.price.totalUsd).toBe(2 * best.pricing.priceUsd)
     if (facts.isCheapest) expect(facts.vsCheapest).toBeNull()
     if (facts.isFastest) expect(facts.vsFastest).toBeNull()
     if (facts.vsCheapest !== null) {
-      expect(facts.vsCheapest.totalMilesDelta).toBeGreaterThan(0)
+      expect(facts.vsCheapest.totalUsdDelta).toBeGreaterThan(0)
     }
   })
 
