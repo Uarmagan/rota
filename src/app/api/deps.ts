@@ -1,6 +1,5 @@
 import { createSimulatedAvailability } from '../../lib/availability/provider'
 import type { AvailabilityProvider } from '../../lib/availability/types'
-import type { NormalizeConfig } from '../../lib/engine/normalize'
 import type { IntentParser } from '../../lib/parser/intent-parser'
 import { OpenAIIntentParser } from '../../lib/parser/openai-intent-parser'
 import { OpenAIResultExplainer } from '../../lib/prose/openai-result-explainer'
@@ -21,7 +20,6 @@ import {
 } from '../../lib/server/request-gate-config'
 
 export const DEFAULT_ORIGIN: Place = { iata: 'ORD', city: 'Chicago' }
-export const NORMALIZE_CONFIG: NormalizeConfig = { defaultOrigin: DEFAULT_ORIGIN }
 const modelCallGateSettings = modelCallGateSettingsFromEnvironment(process.env)
 export const MODEL_CALL_GATE = createModelCallGate(modelCallGateSettings.config)
 export const SEARCH_REQUEST_GATE = createRequestGate(

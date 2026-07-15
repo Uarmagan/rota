@@ -33,8 +33,10 @@ export default function PrivacyPage() {
         <p>
           Vercel hosts the site and counts basic visits. On the Hobby plan,
           analytics have a one-month reporting window, though Vercel may retain
-          data longer. Vercel may process request, device, approximate location,
-          and network metadata under its{' '}
+          data longer. Your approximate location, derived from your IP by the
+          hosting platform, prefills the origin chip in-request and is not
+          stored. Vercel may process request, device, approximate location, and
+          network metadata under its{' '}
           <a
             className="text-neutral-300 underline decoration-neutral-700 underline-offset-2 hover:text-neutral-100"
             href="https://vercel.com/legal/privacy-notice"

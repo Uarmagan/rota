@@ -172,7 +172,8 @@ The deterministic core over flight data. Pure TS, no mocks.
   `generateText` at no reasoning effort.
 - `/api/explain` validates through an engine-owned Zod schema pinned to
   `ExplanationFacts`.
-- App wiring uses UTC `isoToday()` and assumes `{ ORD, Chicago }` when origin is absent.
+- App wiring uses UTC `isoToday()` and nominates a per-request IP-geolocated origin,
+  with `{ ORD, Chicago }` as the fallback when location headers are unavailable.
 - HTTP status contracts distinguish invalid requests, parser output failures,
   transport failures, and non-searchable intents.
 

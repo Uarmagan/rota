@@ -9,6 +9,7 @@ import { DEMO_API_ERROR_CODES } from '../../../lib/server/demo-api-errors'
 import { parseIntentRequest } from '../../../lib/server/llm-route-contracts'
 import { checkPaidRequestBoundary } from '../../../lib/server/paid-request-boundary'
 import type { PaidRequestLimiter } from '../../../lib/server/paid-request-limiter'
+import { normalizeConfigFromGeoHeaders } from '../../../lib/server/origin-geolocation'
 import { clientKeyForRequest } from '../../../lib/server/request-client'
 import type { ModelCallGate } from '../../../lib/server/request-gate'
 import {
@@ -19,8 +20,8 @@ import {
 } from '../../../lib/server/request-body'
 import {
   createParser,
+  DEFAULT_ORIGIN,
   MODEL_CALL_GATE,
-  NORMALIZE_CONFIG,
   PAID_REQUEST_LIMITER,
   TRUST_FORWARDED_ADDRESS,
 } from '../deps'
@@ -53,8 +54,12 @@ export async function handleParse(
       parsedBody.data.utterance,
       request.signal,
     )
+    const normalizeConfig = normalizeConfigFromGeoHeaders(
+      request.headers,
+      DEFAULT_ORIGIN,
+    )
     const intent = fillDefaults(
-      fillAssumptions(canonicalizePlaces(result.intent), NORMALIZE_CONFIG),
+      fillAssumptions(canonicalizePlaces(result.intent), normalizeConfig),
     )
     return Response.json({ intent, gap: checkGaps(intent, result.unhandled) })
   } catch (error) {

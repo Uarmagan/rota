@@ -152,6 +152,29 @@ describe('handleParse', () => {
     expect(release).toHaveBeenCalledOnce()
   })
 
+  it('uses the request geolocation for an unstated origin', async () => {
+    const response = await handleParse(
+      parseRequest(
+        {
+          currentIntent: createEmptyTripIntent(),
+          utterance: 'tokyo in feb for 2',
+        },
+        {
+          'x-vercel-ip-latitude': '34.69',
+          'x-vercel-ip-longitude': '135.50',
+        },
+      ),
+      stubParser({ intent: parsedIntent, unhandled: null }),
+      allowingGate,
+    )
+
+    expect(await response.json()).toMatchObject({
+      intent: {
+        origin: { iata: 'KIX', city: 'Osaka', assumed: true },
+      },
+    })
+  })
+
   it('resolves a country destination as an immediately searchable assumption', async () => {
     const response = await handleParse(
       validRequest(),
@@ -580,12 +603,14 @@ function validRequest(): Request {
 
 function parseRequest(
   body: unknown,
-  headers: Record<string, string> = {},
+  headers: HeadersInit = {},
   signal?: AbortSignal,
 ): Request {
+  const requestHeaders = new Headers(headers)
+  requestHeaders.set('content-type', 'application/json')
   return new Request('http://localhost/api/parse', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', ...headers },
+    headers: requestHeaders,
     body: JSON.stringify(body),
     signal,
   })
