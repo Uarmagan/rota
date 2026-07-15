@@ -11,7 +11,7 @@ import type { Place } from './trip-intent'
 // the simulated availability dataset — bump the version when entries change so
 // fixtures pin what they were written against.
 
-export const PLACES_VERSION = '2026-07-14.2'
+export const PLACES_VERSION = '2026-07-15.1'
 
 export const SUPPORTED_PLACES = [
   { iata: 'JFK', city: 'New York' },
@@ -79,6 +79,30 @@ export const SUPPORTED_PLACES = [
   { iata: 'YVR', city: 'Vancouver' },
 ] as const satisfies readonly Place[]
 
+export const COUNTRY_PRIMARY_CITIES = {
+  Japan: 'Tokyo',
+  'United Kingdom': 'London',
+  France: 'Paris',
+  Germany: 'Berlin',
+  Spain: 'Madrid',
+  Italy: 'Rome',
+  Netherlands: 'Amsterdam',
+  Switzerland: 'Zurich',
+  Portugal: 'Lisbon',
+  Ireland: 'Dublin',
+  Denmark: 'Copenhagen',
+  Sweden: 'Stockholm',
+  Austria: 'Vienna',
+  Greece: 'Athens',
+  Turkey: 'Istanbul',
+} as const
+
+type CountryDestinationName = keyof typeof COUNTRY_PRIMARY_CITIES
+
+export const COUNTRY_DESTINATION_KEYS = Object.freeze(
+  Object.keys(COUNTRY_PRIMARY_CITIES) as CountryDestinationName[],
+)
+
 export type SupportedIataCode = (typeof SUPPORTED_PLACES)[number]['iata']
 export type AirportAliasMap = Readonly<
   Partial<Record<SupportedIataCode, readonly string[]>>
@@ -115,4 +139,11 @@ export function airportAliasesForPlaces(
 
 export function findSupportedPlace(iata: string): Place | null {
   return SUPPORTED_PLACES.find((place) => place.iata === iata) ?? null
+}
+
+export function resolveCountryDestination(country: string): Place | null {
+  if (!Object.hasOwn(COUNTRY_PRIMARY_CITIES, country)) return null
+  const city = COUNTRY_PRIMARY_CITIES[country as CountryDestinationName]
+  const place = SUPPORTED_PLACES.find((candidate) => candidate.city === city)
+  return place ? { iata: place.iata, city: place.city } : null
 }

@@ -42,6 +42,7 @@ import { SUPPORTED_PLACES } from '../../lib/schema/places'
 import type { IntentField } from '../../lib/schema/intent-diff'
 import {
   CABINS,
+  isResolvedDestination,
   type DateWindow,
   type Place,
   type TripIntent,
@@ -651,8 +652,13 @@ function AirportChip({
   onOpenChange: (open: boolean) => void
   onEdit: (edit: IntentEdit) => void
 }) {
-  const current = field === 'origin' ? intent.origin : intent.destination
-  const assumed = field === 'origin' && intent.origin?.assumed === true
+  const current =
+    field === 'origin'
+      ? intent.origin
+      : isResolvedDestination(intent.destination)
+        ? intent.destination
+        : null
+  const assumed = current?.assumed === true
   const isMobile = useIsMobile()
   const triggerLabel = chip.unfilled
     ? (PROMPT_LABELS[chip.field] ?? chip.label)

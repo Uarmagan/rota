@@ -7,7 +7,7 @@ const intent: TripIntent = {
   ...createEmptyTripIntent(),
   travelers: 2,
   origin: { iata: 'ORD', city: 'Chicago', assumed: true },
-  destination: { iata: 'NRT', city: 'Tokyo' },
+  destination: { iata: 'NRT', city: 'Tokyo', assumed: false },
   cabin: 'business',
   dates: {
     earliest: '2027-02-01',

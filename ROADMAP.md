@@ -12,7 +12,7 @@ items from Open decisions into the schema/PRD and note the choice inline.
   Typecheck + 70 tests green.
 - **Done:** M1 parser (2026-07-10; challenge hardening 2026-07-14): parser seam,
   retry policy, direct `@ai-sdk/openai` with default `gpt-5.6-luna`, few-shot prompt,
-  and `pnpm eval`. The corpus now has 47 canonical fixtures and 59 expanded eval
+  and `pnpm eval`. The corpus now has 53 canonical fixtures and 65 expanded eval
   cases; the strict tier has 19 canonical fixtures and 31 expanded cases.
   The original live eval passed 25/25 fixtures (125/125 reps, 0 retries, ~1.05s p50);
   the post-hardening full corpus passed 38/38 (190/190 reps, 0 retries,
@@ -65,13 +65,13 @@ Non-blocking, decided before freezing the schema:
       demo-path utterance needs it. See docs/adr/0003. (PLACES_VERSION bumped to
       2026-07-10.1.) Superseded in M6 by ADR 0008: registry-order bare-city
       resolution now supports multiple airports without adding metro codes.
-- [x] **D4 — Generalize `assumed` beyond origin?** DECIDED: no. Three field states —
+- [x] **D4 — Generalize `assumed` beyond origin?** DECIDED: no for defaults. Three field states —
       stated, assumed, defaulted. Unstated cabin/travelers are FILLED in normalization
       (economy, 1) and shown as plain editable chips, so nothing is silently decided
-      (principle 1), but the "(assumed)" flag stays origin-only to keep the signal
-      undiluted. Cheapest schema path (no new field types). Escalating a field to a
-      flagged assumption later is additive. See docs/adr/0004. NOTE: the defaulting code
-      lands with the M2 engine/normalization; this decision precedes it.
+      (principle 1), but the "(assumed)" flag stays off those safe defaults to keep the
+      signal undiluted. ADR 0009 later adds the one narrow extension: a country-resolved
+      destination is a genuine guess and is therefore flagged. See docs/adr/0004 and
+      docs/adr/0009.
 - [x] **D5 — Exploratory destinations.** DECIDED: no theme→destination search in MVP
       (phase 2; the registry has no warm places anyway). But the theme is not dropped —
       D2 captures "somewhere warm" in `unhandled`, and since destination stays null the
@@ -234,6 +234,8 @@ The deterministic core over flight data. Pure TS, no mocks.
       and unsupported place qualifiers
 - [x] Refresh chip-editor primitives with selectively styled shadcn components while
       preserving the surrounding Palette UI and product-specific chip behavior
+- [x] Resolve closed-list country destinations in the engine as visible, editable
+      assumptions, with unsupported countries and regions staying on existing paths
 - [ ] Walk the demo path against the success criteria: first result <3s, three-utterance
       refinement journey, zero LLM numbers (guard verified in an e2e pass)
 - [ ] Graceful degradation pass on hostile fixtures through the real UI
@@ -247,7 +249,8 @@ The deterministic core over flight data. Pure TS, no mocks.
   earliest-to-latest range, preserving the existing DateWindow schema.
 - Origin and Destination use searchable shadcn Combobox editors with city and IATA
   matching, keyboard navigation, and a visible current selection. Picking the current
-  assumed origin confirms it, preserving the existing assumption transition.
+  assumed origin or destination confirms it, preserving the existing assumption
+  transition.
 - Travelers, Cabin, Priority, Nonstop, Red-eyes, and Late arrival use one consistent
   shadcn Dropdown Menu pattern: direct options, a checked current value, and a Clear
   action only for fields whose schema permits null. Avoid nesting Select inside a

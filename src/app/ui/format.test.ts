@@ -79,7 +79,7 @@ describe('chipsFromIntent', () => {
   const intent: TripIntent = {
     travelers: 2,
     origin: { iata: 'ORD', city: 'Chicago', assumed: true },
-    destination: { iata: 'NRT', city: 'Tokyo' },
+    destination: { iata: 'NRT', city: 'Tokyo', assumed: true },
     cabin: 'premium_economy',
     dates: { earliest: '2027-02-01', latest: '2027-02-28', flexibility: 'flexible' },
     priority: 'cheapest',
@@ -105,6 +105,7 @@ describe('chipsFromIntent', () => {
       ['constraints.avoidLateArrival', 'fine'],
     ])
     expect(chips.find((chip) => chip.field === 'origin')?.assumed).toBe(true)
+    expect(chips.find((chip) => chip.field === 'destination')?.assumed).toBe(true)
   })
 
   it('renders nothing for an empty intent', () => {

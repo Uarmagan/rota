@@ -6,7 +6,7 @@ import { handleParse } from './route'
 
 const parsedIntent: ParseResult['intent'] = {
   ...createEmptyTripIntent(),
-  destination: { iata: 'NRT', city: 'Tokyo, Japan' },
+  destination: { iata: 'NRT', city: 'Tokyo, Japan', assumed: false },
   travelers: 2,
   dates: {
     earliest: '2027-02-01',
@@ -31,8 +31,36 @@ describe('handleParse', () => {
       intent: {
         travelers: 2,
         origin: { iata: 'ORD', city: 'Chicago', assumed: true },
-        destination: { iata: 'NRT', city: 'Tokyo' },
+        destination: { iata: 'NRT', city: 'Tokyo', assumed: false },
         cabin: 'economy',
+      },
+      gap: { kind: 'ready' },
+    })
+  })
+
+  it('resolves a country destination as an immediately searchable assumption', async () => {
+    const response = await handleParse(
+      validRequest(),
+      stubParser({
+        intent: {
+          ...createEmptyTripIntent(),
+          destination: { country: 'Japan' },
+          dates: {
+            earliest: '2026-10-01',
+            latest: '2026-10-31',
+            flexibility: 'flexible',
+          },
+        },
+        unhandled: null,
+      }),
+      allowingGate,
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      intent: {
+        origin: { iata: 'ORD', city: 'Chicago', assumed: true },
+        destination: { iata: 'NRT', city: 'Tokyo', assumed: true },
       },
       gap: { kind: 'ready' },
     })
@@ -217,7 +245,11 @@ describe('handleParse', () => {
     const parse = vi.fn(async () => ({ intent: parsedIntent, unhandled: null }))
     const currentIntent = {
       ...createEmptyTripIntent(),
-      destination: { iata: 'NRT', city: '🚀'.repeat(100) },
+      destination: {
+        iata: 'NRT',
+        city: '🚀'.repeat(100),
+        assumed: false,
+      },
     }
 
     const response = await handleParse(
@@ -234,7 +266,11 @@ describe('handleParse', () => {
     const parse = vi.fn<IntentParser['parse']>()
     const currentIntent = {
       ...createEmptyTripIntent(),
-      destination: { iata: 'NRT', city: '🚀'.repeat(101) },
+      destination: {
+        iata: 'NRT',
+        city: '🚀'.repeat(101),
+        assumed: false,
+      },
     }
 
     const response = await handleParse(

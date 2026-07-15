@@ -28,11 +28,10 @@ import {
 //      outcome without becoming part of TripIntent.
 //
 // Assumption-filling is deliberately NOT applied by the runner: the parser never
-// invents an origin, so first-query fixtures expect origin: null. The engine's
-// fillAssumptions step (null origin -> default with assumed: true) has its own unit
-// tests. currentIntent, by contrast, is post-normalization chip state — it may
-// carry a filled assumed origin, which the parser must preserve or edit like any
-// other field.
+// invents an origin or resolves a country to a city. The engine's fillAssumptions
+// step has its own unit tests. currentIntent, by contrast, is post-normalization
+// chip state — it may carry filled assumptions, which the parser must preserve or
+// edit like any other field.
 //
 // context pins what makes parsing reproducible: relative dates resolve against
 // `today`, places resolve against the versioned registry snapshot. Fixtures never
@@ -138,11 +137,12 @@ const LEGACY_CONTEXT: ParserFixtureContext = {
   airportAliases: airportAliasesForPlaces(LEGACY_PLACES),
 }
 
-const TOKYO = { iata: 'NRT', city: 'Tokyo' }
-const HANEDA = { iata: 'HND', city: 'Tokyo' }
-const LISBON = { iata: 'LIS', city: 'Lisbon' }
-const LONDON = { iata: 'LHR', city: 'London' }
-const PARIS = { iata: 'CDG', city: 'Paris' }
+const TOKYO = { iata: 'NRT', city: 'Tokyo', assumed: false }
+const ASSUMED_TOKYO = { ...TOKYO, assumed: true }
+const HANEDA = { iata: 'HND', city: 'Tokyo', assumed: false }
+const LISBON = { iata: 'LIS', city: 'Lisbon', assumed: false }
+const LONDON = { iata: 'LHR', city: 'London', assumed: false }
+const PARIS = { iata: 'CDG', city: 'Paris', assumed: false }
 const AUG_2026 = {
   earliest: '2026-08-01',
   latest: '2026-08-31',
@@ -192,6 +192,116 @@ const DENSE_CURRENT: TripIntent = {
 }
 
 export const parserFixtures: readonly ParserFixture[] = [
+  {
+    name: 'country-destination-fresh',
+    kind: 'assumption',
+    description:
+      'A supported country remains exactly the country the user stated. The ' +
+      'engine resolves it to a flagged primary-city assumption downstream.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: "I'm going to Japan",
+    expected: {
+      ...createEmptyTripIntent(),
+      destination: { country: 'Japan' },
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['destination'],
+  },
+  {
+    name: 'country-destination-with-dates',
+    kind: 'assumption',
+    description:
+      'Country resolution composes with a stated date window so the normalized ' +
+      'intent is immediately searchable.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'flying to Japan in October',
+    expected: {
+      ...createEmptyTripIntent(),
+      destination: { country: 'Japan' },
+      dates: OCT_2026,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['destination', 'dates'],
+  },
+  {
+    name: 'assumed-destination-preserved',
+    kind: 'refinement',
+    description:
+      'An unrelated refinement preserves the complete resolved destination, ' +
+      'including its engine-authored assumed flag.',
+    context: CONTEXT,
+    currentIntent: {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'ORD', city: 'Chicago', assumed: true },
+      destination: ASSUMED_TOKYO,
+      dates: OCT_2026,
+      cabin: 'economy',
+      travelers: 1,
+    },
+    utterance: 'make it business class',
+    expected: {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'ORD', city: 'Chicago', assumed: true },
+      destination: ASSUMED_TOKYO,
+      dates: OCT_2026,
+      cabin: 'business',
+      travelers: 1,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['cabin'],
+  },
+  {
+    name: 'assumed-destination-replaced',
+    kind: 'refinement',
+    description:
+      'A stated city replaces the country-derived assumption and clears the flag.',
+    context: CONTEXT,
+    currentIntent: {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'ORD', city: 'Chicago', assumed: true },
+      destination: ASSUMED_TOKYO,
+      dates: OCT_2026,
+      cabin: 'economy',
+      travelers: 1,
+    },
+    utterance: 'actually Osaka',
+    expected: {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'ORD', city: 'Chicago', assumed: true },
+      destination: { iata: 'KIX', city: 'Osaka', assumed: false },
+      dates: OCT_2026,
+      cabin: 'economy',
+      travelers: 1,
+    },
+    expectedUnhandled: null,
+    expectedChangedFields: ['destination'],
+  },
+  {
+    name: 'unsupported-country',
+    kind: 'initial',
+    description:
+      'A country outside the closed resolution table follows the unsupported-place path.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: "I'm going to Brazil",
+    expected: createEmptyTripIntent(),
+    expectedUnhandled: 'Brazil',
+    expectedChangedFields: [],
+  },
+  {
+    name: 'region-destination-theme',
+    kind: 'initial',
+    description:
+      'A region remains a destination theme rather than becoming a country assumption.',
+    context: CONTEXT,
+    currentIntent: createEmptyTripIntent(),
+    utterance: 'somewhere in Asia',
+    expected: createEmptyTripIntent(),
+    expectedUnhandled: 'somewhere in Asia',
+    expectedChangedFields: [],
+  },
   {
     name: 'lazy-first-query',
     kind: 'initial',
@@ -312,7 +422,7 @@ export const parserFixtures: readonly ParserFixture[] = [
     expected: {
       ...createEmptyTripIntent(),
       origin: { iata: 'MDW', city: 'Chicago', assumed: false },
-      destination: { iata: 'ORD', city: 'Chicago' },
+      destination: { iata: 'ORD', city: 'Chicago', assumed: false },
       dates: NOV_2026,
     },
     expectedUnhandled: null,
@@ -541,7 +651,7 @@ export const parserFixtures: readonly ParserFixture[] = [
     currentIntent: {
       travelers: 1,
       origin: { iata: 'SFO', city: 'San Francisco', assumed: false },
-      destination: { iata: 'LIS', city: 'Lisbon' },
+      destination: { iata: 'LIS', city: 'Lisbon', assumed: false },
       cabin: 'business',
       dates: { earliest: '2026-09-14', latest: '2026-09-14', flexibility: 'exact' },
       priority: null,
@@ -551,7 +661,7 @@ export const parserFixtures: readonly ParserFixture[] = [
     expected: {
       travelers: 1,
       origin: { iata: 'SFO', city: 'San Francisco', assumed: false },
-      destination: { iata: 'LIS', city: 'Lisbon' },
+      destination: { iata: 'LIS', city: 'Lisbon', assumed: false },
       cabin: 'business',
       dates: { earliest: '2026-09-14', latest: '2026-09-14', flexibility: 'exact' },
       priority: null,

@@ -13,7 +13,7 @@ import { SearchApp } from './search-app'
 const SEARCH_INTENT: TripIntent = {
   travelers: 2,
   origin: { iata: 'ORD', city: 'Chicago', assumed: true },
-  destination: { iata: 'NRT', city: 'Tokyo' },
+  destination: { iata: 'NRT', city: 'Tokyo', assumed: false },
   cabin: 'economy',
   dates: {
     earliest: '2027-02-03',

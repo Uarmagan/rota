@@ -14,11 +14,15 @@ describe('canonicalizePlaces', () => {
     const intent = {
       ...createEmptyTripIntent(),
       origin: { iata: 'ORD', city: 'Chicago, IL', assumed: false },
-      destination: { iata: 'NRT', city: 'Tokyo, Japan' },
+      destination: { iata: 'NRT', city: 'Tokyo, Japan', assumed: true },
     }
     const result = canonicalizePlaces(intent)
     expect(result.origin).toEqual({ iata: 'ORD', city: 'Chicago', assumed: false })
-    expect(result.destination).toEqual({ iata: 'NRT', city: 'Tokyo' })
+    expect(result.destination).toEqual({
+      iata: 'NRT',
+      city: 'Tokyo',
+      assumed: true,
+    })
   })
 
   it('preserves the assumed flag through canonicalization', () => {
@@ -29,6 +33,14 @@ describe('canonicalizePlaces', () => {
     expect(canonicalizePlaces(intent).origin?.assumed).toBe(true)
   })
 
+  it('preserves a country destination for assumption filling', () => {
+    const intent = {
+      ...createEmptyTripIntent(),
+      destination: { country: 'Japan' as const },
+    }
+    expect(canonicalizePlaces(intent)).toEqual(intent)
+  })
+
   it('passes null places through', () => {
     const empty = createEmptyTripIntent()
     expect(canonicalizePlaces(empty)).toEqual(empty)
@@ -37,7 +49,7 @@ describe('canonicalizePlaces', () => {
   it('rejects IATA codes outside the registry', () => {
     const intent = {
       ...createEmptyTripIntent(),
-      destination: { iata: 'XXX', city: 'Nowhere' },
+      destination: { iata: 'XXX', city: 'Nowhere', assumed: false },
     }
     expect(() => canonicalizePlaces(intent)).toThrow(UnknownPlaceError)
   })
@@ -53,6 +65,39 @@ describe('fillAssumptions', () => {
     const intent = {
       ...createEmptyTripIntent(),
       origin: { iata: 'SFO', city: 'San Francisco', assumed: false },
+    }
+    expect(fillAssumptions(intent, config)).toBe(intent)
+  })
+
+  it('resolves a country destination to its primary place as assumed', () => {
+    const intent = {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'SFO', city: 'San Francisco', assumed: false },
+      destination: { country: 'Japan' as const },
+    }
+    expect(fillAssumptions(intent, config)).toEqual({
+      ...intent,
+      destination: { iata: 'NRT', city: 'Tokyo', assumed: true },
+    })
+  })
+
+  it('fills origin and resolves a country destination in the same pass', () => {
+    const intent = {
+      ...createEmptyTripIntent(),
+      destination: { country: 'Germany' as const },
+    }
+    expect(fillAssumptions(intent, config)).toEqual({
+      ...intent,
+      origin: { iata: 'ORD', city: 'Chicago', assumed: true },
+      destination: { iata: 'BER', city: 'Berlin', assumed: true },
+    })
+  })
+
+  it('does not touch a stated destination', () => {
+    const intent = {
+      ...createEmptyTripIntent(),
+      origin: { iata: 'SFO', city: 'San Francisco', assumed: false },
+      destination: { iata: 'KIX', city: 'Osaka', assumed: false },
     }
     expect(fillAssumptions(intent, config)).toBe(intent)
   })
@@ -79,7 +124,7 @@ describe('fillDefaults', () => {
   it('leaves every other field untouched', () => {
     const intent = {
       ...createEmptyTripIntent(),
-      destination: { iata: 'NRT', city: 'Tokyo' },
+      destination: { iata: 'NRT', city: 'Tokyo', assumed: false },
       dates: {
         earliest: '2027-02-10',
         latest: '2027-02-14',

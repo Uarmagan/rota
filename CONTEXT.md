@@ -78,7 +78,10 @@ A hole in a parsed intent — a null field, or a contradiction between constrain
 **Assumption**:
 A risky gap the engine fills AND flags with a one-tap-editable label ("From: Chicago
 (assumed)") that says "double-check me". Reserved for genuine guesses about the user —
-currently origin only. Confirming flips the flag off. Only the engine creates one.
+currently the unstated origin and the destination produced by [[Country resolution]].
+An assumed destination is immediately searchable: fill-and-flag, never
+fill-and-confirm. Confirming or editing flips the flag off. Only the engine creates
+one.
 _Avoid_: silent default, guess
 
 **Default**:
@@ -116,6 +119,16 @@ blocker and is adjudicated first; when destination is ALSO missing, the echo lin
 alongside the destination [[Prompt chip]] (see [[Destination theme]]) rather than being
 deferred invisibly — the line acknowledges, the chip asks.
 _Avoid_: warning, follow-up (it asks nothing)
+
+**Country resolution**:
+Mapping a stated country ("Japan") to its primary city (Tokyo) via the explicit
+country table in the place registry — a curated product judgment, versioned with the
+registry. The parser emits only the country the user actually said (from the table's
+closed key list); the engine resolves it to the primary place and flags the
+destination as an [[Assumption]]. Strictly country-level: regions ("Asia") remain a
+[[Destination theme]], and a country the registry doesn't cover takes the ordinary
+unsupported-place path. See docs/adr/0009.
+_Avoid_: country alias, region mapping, geo lookup
 
 **Destination theme**:
 A deliberately vague destination ("somewhere warm", "a beach") — an invitation to

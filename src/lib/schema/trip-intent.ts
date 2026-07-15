@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { COUNTRY_DESTINATION_KEYS } from './places'
 
 // This schema is the contract of LLM boundary #1: the parser re-emits the COMPLETE
 // TripIntent on every utterance. Absent/unstated fields are null, never omitted —
@@ -48,6 +49,28 @@ export const originSchema = placeSchema.extend({
 })
 export type Origin = z.infer<typeof originSchema>
 
+export const resolvedDestinationSchema = placeSchema.extend({
+  assumed: z.boolean(),
+})
+export type ResolvedDestination = z.infer<typeof resolvedDestinationSchema>
+
+export const countryDestinationSchema = z.object({
+  country: z.enum(COUNTRY_DESTINATION_KEYS),
+})
+export type CountryDestination = z.infer<typeof countryDestinationSchema>
+
+export const destinationSchema = z.union([
+  resolvedDestinationSchema,
+  countryDestinationSchema,
+])
+export type Destination = z.infer<typeof destinationSchema>
+
+export function isResolvedDestination(
+  destination: Destination | null,
+): destination is ResolvedDestination {
+  return destination !== null && 'iata' in destination
+}
+
 // 'exact': the user named a specific day (earliest === latest).
 // 'flexible': any departure inside the window works ("in february", "mid-March").
 export const dateWindowSchema = z
@@ -95,7 +118,7 @@ export const tripIntentSchema = z.object({
   // Occupied seats — what availability must find and pricing must multiply.
   travelers: z.number().int().min(1).max(9).nullable(),
   origin: originSchema.nullable(),
-  destination: placeSchema.nullable(),
+  destination: destinationSchema.nullable(),
   cabin: cabinSchema.nullable(),
   dates: dateWindowSchema.nullable(),
   priority: prioritySchema.nullable(),

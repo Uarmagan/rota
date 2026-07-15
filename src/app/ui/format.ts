@@ -4,7 +4,12 @@
 import { AIRLINES } from '../../lib/availability/airlines'
 import type { FlightOption } from '../../lib/engine/types'
 import type { IntentField } from '../../lib/schema/intent-diff'
-import type { Cabin, DateWindow, TripIntent } from '../../lib/schema/trip-intent'
+import {
+  isResolvedDestination,
+  type Cabin,
+  type DateWindow,
+  type TripIntent,
+} from '../../lib/schema/trip-intent'
 
 const AIRLINE_NAMES: Readonly<Record<string, string>> = Object.fromEntries(
   AIRLINES.map((airline) => [airline.code, airline.name]),
@@ -38,8 +43,13 @@ export function chipsFromIntent(intent: TripIntent): ChipView[] {
   if (intent.origin) {
     add('origin', 'From', `${intent.origin.iata} · ${intent.origin.city}`, intent.origin.assumed)
   }
-  if (intent.destination) {
-    add('destination', 'To', `${intent.destination.iata} · ${intent.destination.city}`)
+  if (isResolvedDestination(intent.destination)) {
+    add(
+      'destination',
+      'To',
+      `${intent.destination.iata} · ${intent.destination.city}`,
+      intent.destination.assumed,
+    )
   }
   if (intent.dates) add('dates', 'Dates', formatDateWindow(intent.dates))
   if (intent.cabin !== null) add('cabin', 'Cabin', CABIN_LABELS[intent.cabin])

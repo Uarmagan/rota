@@ -8,7 +8,7 @@ describe('toAvailabilityQuery', () => {
       ...createEmptyTripIntent(),
       travelers: 2,
       origin: { iata: 'ORD', city: 'Chicago', assumed: false },
-      destination: { iata: 'NRT', city: 'Tokyo' },
+      destination: { iata: 'NRT', city: 'Tokyo', assumed: false },
       dates: {
         earliest: '2027-02-10',
         latest: '2027-02-10',
@@ -40,7 +40,7 @@ describe('toAvailabilityQuery', () => {
 const SEARCHABLE_INTENT = {
   ...createEmptyTripIntent(),
   origin: { iata: 'ORD', city: 'Chicago', assumed: true },
-  destination: { iata: 'NRT', city: 'Tokyo' },
+  destination: { iata: 'NRT', city: 'Tokyo', assumed: false },
   dates: {
     earliest: '2027-02-10',
     latest: '2027-02-10',

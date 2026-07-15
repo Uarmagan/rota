@@ -45,7 +45,7 @@ describe('LLM route transport contracts', () => {
     const label = '🚀'.repeat(100)
     const intent = {
       ...createEmptyTripIntent(),
-      destination: { iata: 'NRT', city: label },
+      destination: { iata: 'NRT', city: label, assumed: false },
     }
 
     expect(
@@ -65,7 +65,7 @@ describe('LLM route transport contracts', () => {
     const label = '🚀'.repeat(101)
     const intent = {
       ...createEmptyTripIntent(),
-      destination: { iata: 'NRT', city: label },
+      destination: { iata: 'NRT', city: label, assumed: false },
     }
 
     expect(

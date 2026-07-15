@@ -35,7 +35,7 @@ const context = {
 const validResult: ParseResult = {
   intent: {
     ...createEmptyTripIntent(),
-    destination: { iata: 'NRT', city: 'Tokyo' },
+    destination: { iata: 'NRT', city: 'Tokyo', assumed: false },
   },
   unhandled: null,
 }
@@ -84,6 +84,38 @@ describe('OpenAIIntentParser', () => {
     expect(legacyPrompt).toContain('NRT: Tokyo (airport names: Narita, Tokyo Narita)')
     expect(legacyPrompt).not.toContain('Haneda')
     expect(legacyPrompt).not.toContain('Midway')
+  })
+
+  it('grounds the closed country vocabulary without country-to-city mappings', () => {
+    const prompt = buildSystemPrompt(context)
+
+    expect(prompt).toContain(
+      'Japan, United Kingdom, France, Germany, Spain, Italy, Netherlands, ' +
+        'Switzerland, Portugal, Ireland, Denmark, Sweden, Austria, Greece, Turkey',
+    )
+    expect(prompt).toContain('emit only {"country":"<their country>"}')
+    expect(prompt).not.toContain('Japan: Tokyo')
+    expect(prompt).not.toContain('Germany: Berlin')
+  })
+
+  it('accepts a closed-list country destination for engine resolution', async () => {
+    const countryResult: ParseResult = {
+      intent: {
+        ...createEmptyTripIntent(),
+        destination: { country: 'Japan' },
+      },
+      unhandled: null,
+    }
+    const model = mockModel([modelResult(countryResult)])
+    openaiMock.model = model
+
+    await expect(
+      new OpenAIIntentParser(context).parse(
+        createEmptyTripIntent(),
+        "I'm going to Japan",
+      ),
+    ).resolves.toEqual(countryResult)
+    expect(model.doGenerateCalls).toHaveLength(1)
   })
 
   it('keeps airport aliases unique and limited to supported registry keys', () => {
@@ -142,10 +174,32 @@ describe('OpenAIIntentParser', () => {
       ...validResult,
       intent: {
         ...validResult.intent,
-        destination: { iata: 'XXX', city: 'Unknown' },
+        destination: { iata: 'XXX', city: 'Unknown', assumed: false },
       },
     }
     const model = mockModel([modelResult(unknownPlace), modelResult(validResult)])
+    openaiMock.model = model
+
+    const parser = new OpenAIIntentParser(context)
+    await expect(
+      parser.parse(createEmptyTripIntent(), 'to tokyo'),
+    ).resolves.toEqual(validResult)
+    expect(model.doGenerateCalls).toHaveLength(2)
+    expect(parser.lastAttemptCount).toBe(2)
+  })
+
+  it('retries once when a country is outside the closed registry', async () => {
+    const unknownCountry = {
+      ...validResult,
+      intent: {
+        ...validResult.intent,
+        destination: { country: 'Brazil' },
+      },
+    }
+    const model = mockModel([
+      modelResult(unknownCountry),
+      modelResult(validResult),
+    ])
     openaiMock.model = model
 
     const parser = new OpenAIIntentParser(context)
@@ -161,7 +215,7 @@ describe('OpenAIIntentParser', () => {
       ...validResult,
       intent: {
         ...validResult.intent,
-        destination: { iata: 'XXX', city: 'Unknown' },
+        destination: { iata: 'XXX', city: 'Unknown', assumed: false },
       },
     }
     const model = mockModel([modelResult(unknownPlace), modelResult(unknownPlace)])

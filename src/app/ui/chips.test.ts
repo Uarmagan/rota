@@ -11,7 +11,7 @@ import { ChipsRow } from './chips'
 const intent: TripIntent = {
   travelers: 2,
   origin: { iata: 'ORD', city: 'Chicago', assumed: true },
-  destination: { iata: 'NRT', city: 'Tokyo' },
+  destination: { iata: 'NRT', city: 'Tokyo', assumed: true },
   cabin: 'economy',
   dates: {
     earliest: '2027-02-03',
@@ -68,6 +68,23 @@ describe('ChipsRow', () => {
     expect(onEdit).toHaveBeenLastCalledWith({
       field: 'origin',
       value: { iata: 'SFO', city: 'San Francisco' },
+    })
+  })
+
+  it('renders and confirms an assumed destination through the existing editor', async () => {
+    const { onEdit } = setup()
+    const user = userEvent.setup()
+
+    await user.click(
+      screen.getByRole('combobox', { name: /to.*NRT.*assumed/i }),
+    )
+    await user.click(
+      await screen.findByRole('option', { name: /Tokyo.*NRT.*confirm/i }),
+    )
+
+    expect(onEdit).toHaveBeenLastCalledWith({
+      field: 'destination',
+      value: { iata: 'NRT', city: 'Tokyo' },
     })
   })
 

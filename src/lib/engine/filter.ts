@@ -1,4 +1,7 @@
-import type { TripIntent } from '../schema/trip-intent'
+import {
+  isResolvedDestination,
+  type TripIntent,
+} from '../schema/trip-intent'
 import { datePart, timeOfDayMinutes } from './clock'
 import type { FlightOption } from './types'
 
@@ -71,8 +74,13 @@ function assertGeneratorContract(
   if (intent.origin && firstSegment.from !== intent.origin.iata) {
     throw new GeneratorContractError(option.id, 'origin')
   }
-  if (intent.destination && finalSegment.to !== intent.destination.iata) {
-    throw new GeneratorContractError(option.id, 'destination')
+  if (intent.destination) {
+    if (!isResolvedDestination(intent.destination)) {
+      throw new GeneratorContractError(option.id, 'destination resolution')
+    }
+    if (finalSegment.to !== intent.destination.iata) {
+      throw new GeneratorContractError(option.id, 'destination')
+    }
   }
   if (intent.dates) {
     const departureDate = datePart(firstSegment.departLocal)

@@ -1,4 +1,7 @@
-import { findSupportedPlace } from '../schema/places'
+import {
+  findSupportedPlace,
+  resolveCountryDestination,
+} from '../schema/places'
 import type { Cabin, Place, TripIntent } from '../schema/trip-intent'
 
 export const DEFAULT_CABIN: Cabin = 'economy'
@@ -8,6 +11,13 @@ export class UnknownPlaceError extends Error {
   constructor(readonly iata: string) {
     super(`IATA code not in the supported-place registry: ${iata}`)
     this.name = 'UnknownPlaceError'
+  }
+}
+
+export class UnknownCountryError extends Error {
+  constructor(readonly country: string) {
+    super(`Country not in the destination registry: ${country}`)
+    this.name = 'UnknownCountryError'
   }
 }
 
@@ -21,7 +31,13 @@ export function canonicalizePlaces(intent: TripIntent): TripIntent {
     origin: intent.origin
       ? { ...canonical(intent.origin.iata), assumed: intent.origin.assumed }
       : null,
-    destination: intent.destination ? canonical(intent.destination.iata) : null,
+    destination:
+      intent.destination === null || 'country' in intent.destination
+        ? intent.destination
+        : {
+            ...canonical(intent.destination.iata),
+            assumed: intent.destination.assumed,
+          },
   }
 }
 
@@ -29,16 +45,24 @@ export interface NormalizeConfig {
   defaultOrigin: Place
 }
 
-// Pipeline step 3: the parser never invents an origin; this is the one place an
-// assumption enters state, as pure policy.
+// Pipeline step 3: the parser never invents an origin or resolves a country to a
+// place. Assumptions enter state here as pure policy.
 export function fillAssumptions(
   intent: TripIntent,
   config: NormalizeConfig,
 ): TripIntent {
-  if (intent.origin) return intent
+  const origin =
+    intent.origin ?? { ...canonical(config.defaultOrigin.iata), assumed: true }
+  const destination =
+    intent.destination !== null && 'country' in intent.destination
+      ? { ...countryDestination(intent.destination.country), assumed: true }
+      : intent.destination
+
+  if (origin === intent.origin && destination === intent.destination) return intent
   return {
     ...intent,
-    origin: { ...canonical(config.defaultOrigin.iata), assumed: true },
+    origin,
+    destination,
   }
 }
 
@@ -56,4 +80,10 @@ function canonical(iata: string): Place {
   const place = findSupportedPlace(iata)
   if (!place) throw new UnknownPlaceError(iata)
   return { iata: place.iata, city: place.city }
+}
+
+function countryDestination(country: string): Place {
+  const place = resolveCountryDestination(country)
+  if (!place) throw new UnknownCountryError(country)
+  return place
 }

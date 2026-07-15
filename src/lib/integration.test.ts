@@ -18,7 +18,7 @@ const intent = fillDefaults(
   fillAssumptions(
     {
       ...createEmptyTripIntent(),
-      destination: { iata: 'NRT', city: 'Tokyo' },
+      destination: { iata: 'NRT', city: 'Tokyo', assumed: false },
       cabin: 'business',
       travelers: 2,
       dates: {

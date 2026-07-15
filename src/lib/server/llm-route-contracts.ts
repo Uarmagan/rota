@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { explanationFactsSchema } from '../engine/facts-schema'
-import { placeSchema, tripIntentSchema } from '../schema/trip-intent'
+import {
+  countryDestinationSchema,
+  placeSchema,
+  tripIntentSchema,
+} from '../schema/trip-intent'
 
 const MAX_UTTERANCE_CODE_POINTS = 500
 const MAX_CITY_CODE_POINTS = 100
@@ -20,9 +24,13 @@ const NUMERIC_MAXIMA = {
 
 const boundedCitySchema = boundedString(MAX_CITY_CODE_POINTS)
 const boundedPlaceSchema = placeSchema.extend({ city: boundedCitySchema })
+const boundedDestinationSchema = z.union([
+  boundedPlaceSchema.extend({ assumed: z.boolean() }),
+  countryDestinationSchema,
+])
 const boundedTripIntentSchema = tripIntentSchema.extend({
   origin: boundedPlaceSchema.extend({ assumed: z.boolean() }).nullable(),
-  destination: boundedPlaceSchema.nullable(),
+  destination: boundedDestinationSchema.nullable(),
 })
 
 const intentRequestSchema = z.object({

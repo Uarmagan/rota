@@ -1,5 +1,10 @@
 import type { FlightOption } from '../engine/types'
-import type { Cabin, DateWindow, TripIntent } from '../schema/trip-intent'
+import {
+  isResolvedDestination,
+  type Cabin,
+  type DateWindow,
+  type TripIntent,
+} from '../schema/trip-intent'
 
 export interface AvailabilityQuery {
   origin: string
@@ -36,6 +41,9 @@ export interface SourcePersonality {
 export function toAvailabilityQuery(intent: TripIntent): AvailabilityQuery {
   if (intent.origin === null) throw new Error('Missing origin')
   if (intent.destination === null) throw new Error('Missing destination')
+  if (!isResolvedDestination(intent.destination)) {
+    throw new Error('Unresolved country destination')
+  }
   if (intent.dates === null) throw new Error('Missing dates')
 
   return {

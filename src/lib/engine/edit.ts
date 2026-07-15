@@ -31,7 +31,11 @@ export function applyIntentEdit(intent: TripIntent, edit: IntentEdit): TripInten
       next = { ...intent, origin: { ...edit.value, assumed: false } }
       break
     case 'destination':
-      next = { ...intent, destination: edit.value }
+      next = {
+        ...intent,
+        destination:
+          edit.value === null ? null : { ...edit.value, assumed: false },
+      }
       break
     case 'cabin':
       next = { ...intent, cabin: edit.value }

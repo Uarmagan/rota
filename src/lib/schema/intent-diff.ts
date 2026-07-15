@@ -3,7 +3,6 @@ import type {
   Constraints,
   DateWindow,
   Origin,
-  Place,
   TripIntent,
 } from './trip-intent'
 
@@ -17,7 +16,7 @@ import type {
 export type IntentFieldValues = {
   travelers: TripIntent['travelers']
   origin: Origin | null
-  destination: Place | null
+  destination: TripIntent['destination']
   cabin: Cabin | null
   dates: DateWindow | null
   priority: TripIntent['priority']
@@ -31,7 +30,7 @@ export type IntentFieldValues = {
 export type IntentField = keyof IntentFieldValues
 
 // kind is derived: null -> value = 'set', value -> different value = 'changed'
-// (deep inequality; an assumed origin being confirmed counts), value -> null =
+// (deep inequality; an assumed place being confirmed counts), value -> null =
 // 'cleared'. Fields absent from the diff are deep-equal between the two intents.
 export type IntentChange<F extends IntentField = IntentField> = {
   [K in F]: {

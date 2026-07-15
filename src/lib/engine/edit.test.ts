@@ -6,7 +6,7 @@ import { applyIntentEdit } from './edit'
 const base: TripIntent = {
   travelers: 2,
   origin: { iata: 'ORD', city: 'Chicago', assumed: true },
-  destination: { iata: 'NRT', city: 'Tokyo' },
+  destination: { iata: 'NRT', city: 'Tokyo', assumed: true },
   cabin: 'economy',
   dates: {
     earliest: '2027-02-03',
@@ -74,6 +74,12 @@ describe('applyIntentEdit', () => {
         value: { iata: 'ORD', city: 'Chicago' },
       }).origin,
     ).toEqual({ iata: 'ORD', city: 'Chicago', assumed: false })
+    expect(
+      applyIntentEdit(base, {
+        field: 'destination',
+        value: { iata: 'NRT', city: 'Tokyo' },
+      }).destination,
+    ).toEqual({ iata: 'NRT', city: 'Tokyo', assumed: false })
   })
 
   it('clears only removable fields', () => {

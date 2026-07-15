@@ -5,7 +5,7 @@ import { computeIntentDiff } from './diff'
 const base: TripIntent = {
   travelers: 2,
   origin: { iata: 'ORD', city: 'Chicago', assumed: true },
-  destination: { iata: 'NRT', city: 'Tokyo' },
+  destination: { iata: 'NRT', city: 'Tokyo', assumed: false },
   cabin: 'economy',
   dates: { earliest: '2027-02-01', latest: '2027-02-28', flexibility: 'flexible' },
   priority: null,
@@ -59,6 +59,16 @@ describe('computeIntentDiff', () => {
     const diff = computeIntentDiff(base, next)
     expect(diff).toHaveLength(1)
     expect(diff[0]).toMatchObject({ field: 'origin', kind: 'changed' })
+  })
+
+  it('treats a destination assumed-flag flip as a change', () => {
+    const previous = {
+      ...base,
+      destination: { ...base.destination!, assumed: true },
+    }
+    expect(computeIntentDiff(previous, base)).toEqual([
+      expect.objectContaining({ field: 'destination', kind: 'changed' }),
+    ])
   })
 
   it('diffs constraints individually, not as one blob', () => {

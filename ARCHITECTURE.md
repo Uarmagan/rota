@@ -23,16 +23,18 @@ src/
   lib/
     schema/         Shared vocabulary. TripIntent Zod schema + inferred types,
                     IntentDiff types, and the canonical place registry plus
-                    versioned parser-visible airport aliases (places.ts).
-                    Contains vocabulary lookup/filter helpers, but no product
-                    policy. Imports only zod or other schema modules.
+                    versioned parser-visible airport aliases and country-to-primary-
+                    city policy (places.ts).
+                    Contains versioned vocabulary lookups and explicit registry
+                    resolution policy. Imports only zod and schema modules.
     engine/         The deterministic core. Pure TypeScript, zero framework and
                     zero LLM dependencies. Fully unit-testable without mocks.
                       normalize.ts  canonicalizePlaces: map every parser-emitted
                                     IATA code to its registry entry (discarding
                                     model-authored city labels), reject unknown
-                                    codes. fillAssumptions: null origin -> the
-                                    configured default with assumed: true.
+                                    codes, and preserve country destinations.
+                                    fillAssumptions: null origin -> configured
+                                    default; country -> primary city. Both assumed.
                       diff.ts       computeIntentDiff(prev, next) -> IntentDiff,
                                     always over normalized intents
                       gaps.ts       follow-up policy: destination missing or
@@ -109,11 +111,11 @@ diff.
   1. parser.parse()          LLM re-emits the COMPLETE ParseResult. A Zod gate plus
                              registry check gets one feedback retry. Never a patch.
   2. canonicalizePlaces()    engine, deterministic: every emitted IATA code maps to
-                             its registry entry. The parser gate guarantees membership,
-                             so this is a pure relabel plus defensive invariant check.
-  3. fillAssumptions()       engine, deterministic: origin null -> configured default
-                             with assumed: true. The parser NEVER invents an origin;
-                             assumption is policy, and policy is engine code.
+                             its registry entry; a country destination passes through
+                             unchanged. The parser gate guarantees membership.
+  3. fillAssumptions()       engine, deterministic: origin null -> configured default;
+                             country destination -> registry primary city. Both carry
+                             assumed: true. The parser never makes either guess.
   4. computeIntentDiff()     engine: prev normalized state vs new normalized state.
                              Drives chip render/animation and nothing else — the diff
                              is presentation, the full intent is state.
@@ -129,9 +131,9 @@ diff.
 Refinements ("actually business class, and nonstop if possible") POST the live chip
 state as `currentIntent`. Chips are the source of truth — the conversation transcript is
 never sent, never stored, never consulted. Removal ("forget the nonstop thing") is
-re-emission with that field back to `null`. Once an assumed origin is in chip state, the
-parser edits it like any other field: "actually from SFO" replaces it, a confirmation
-flips `assumed` to `false`.
+re-emission with that field back to `null`. Once an assumed origin or destination is in
+chip state, the parser edits it like any other field: a stated replacement clears
+`assumed`, while unrelated refinements preserve the resolved value and flag byte-for-byte.
 
 Chip taps take a shortcut: they edit the TripIntent directly on the client and skip
 steps 1–3. Same diff, same re-search.
@@ -150,7 +152,7 @@ object and open the search as soon as destination + dates validate.
 
 | PRD principle | Enforcement point |
 |---|---|
-| 1. The AI never silently decides | Every interpretable field in `schema` is `.nullable()`; origin carries `assumed: boolean`. The parser never fills a gap: `engine/normalize.ts` owns assumption-filling and `engine/gaps.ts` owns the follow-up policy, both as pure, tested logic. Chips render only from TripIntent, so nothing that was decided can stay invisible. |
+| 1. The AI never silently decides | Every interpretable field in `schema` is `.nullable()`; resolved origin and destination places carry `assumed: boolean`. The parser emits only a stated country; `engine/normalize.ts` owns country resolution and all assumption-filling, while `engine/gaps.ts` owns follow-up policy. Chips render only from TripIntent, so nothing that was decided can stay invisible. |
 | 2. The AI interprets, the engine computes | LLM calls exist in exactly two modules — `parser` (user words → visible TripIntent values, Zod-gated, then deterministically canonicalized) and `prose` (ExplanationFacts → copy) — enforced by the repo-wide allowlist guard. A parser value such as Travelers: 3 may be a traceable interpretation of three named people; it is not a generated availability fact. Every price, duration, rank, comparison, and other result number is deterministic. `prose` output passes a number-provenance guard: every digit sequence and spelled-out number word in the copy must correspond to a value in the input facts, else the copy is rejected and a deterministic fallback template renders. |
 | 3. Conversation edits state, not history | The parser signature `(currentIntent, utterance) => ParseResult` is the whole memory model — there is no chat log anywhere in the system, and `unhandled` is transient beside the intent. Full-state re-emission means unmentioned fields are preserved by instruction and **asserted by the fixture suite** (deep equality on the complete intent, made fair by canonicalization). IntentDiff is computed by `engine/diff.ts` over normalized states, never emitted by the model. |
 | 4. Speed should feel alive | Sequential pipeline with an explicit latency budget (above). `availability` is interface-first with per-source latency simulation streamed over a real ReadableStream. Ranking is incremental and stable in `engine/rank.ts` so re-ranks are legible, not jumpy. |
@@ -172,11 +174,11 @@ interface ResultExplainer {
 ```
 
 The OpenAI `IntentParser` is constructed with a request-scoped
-`ParserContext { today, supportedPlaces, airportAliases }` (the registry and aliases,
-versioned in `schema/places.ts`) so relative dates ("in feb") resolve against explicit,
-testable inputs and the prompt only ever offers places and airport names the simulation
-knows. The default origin is **not** parser context — it belongs to the engine's
-normalize config, because the parser never uses it.
+`ParserContext { today, supportedPlaces, airportAliases }`; the prompt also reads the
+closed country-key list from the same versioned `schema/places.ts` registry. Relative
+dates ("in feb") resolve against explicit, testable inputs, and the parser only emits
+listed places, airport names, or countries. Default origin and country-to-city mappings
+are **not** parser context — both belong to engine normalization policy.
 
 The parser returns raw, pre-canonicalization `ParseResult` and owns all model-mistake
 retries. Invalid JSON, Zod failures, and registry-membership failures get at most one
@@ -213,8 +215,8 @@ the feedback-retry path.
   constraint. Normalize (canonicalization + assumption-fill), diff, gaps, filter, rank,
   pricing, explain-facts all covered directly.
 - `parser`: the committed fixture set (`src/lib/parser/fixtures.ts`) is the product
-  requirement from PRD §6. It currently contains 47 canonical fixtures expanded into
-  59 deterministic evaluation cases; 19 canonical challenge fixtures expand to 31
+  requirement from PRD §6. It currently contains 53 canonical fixtures expanded into
+  65 deterministic evaluation cases; 19 canonical challenge fixtures expand to 31
   strict challenge cases. Curated variants inherit the canonical fixture's complete
   expected state, while minimal-pair fixtures carry their own deliberately different
   expectations. The runner asserts, per case: (a) deep equality of
@@ -222,8 +224,8 @@ the feedback-retry path.
   unmentioned fields is structurally asserted, not spot-checked; (b) that
   `computeIntentDiff(currentIntent, result)` touches exactly the expected changed-field
   set; and (c) `unhandled` null-ness matches its expectation. Assumption-filling is deliberately not applied in the runner: cases pin the
-  parser stage (origin stays null on a first query); the fill is engine-tested
-  separately. `pnpm eval` runs five live reps per expanded case and reports retry rate,
+  parser stage (origin stays null and country stays unresolved on a first query); the
+  fill is engine-tested separately. `pnpm eval` runs five live reps per expanded case and reports retry rate,
   p50/p95 latency, and soft wording matches. Correctness requires at least 4/5 reps, or
   5/5 for hostile fixtures. The challenge tier (`pnpm eval -- --challenge`) rejects
   runs below five reps, requires every rep to pass, and requires non-null `unhandled`

@@ -53,8 +53,8 @@ describe('fixture expansion', () => {
 
   it('keeps the documented corpus and challenge counts deterministic', () => {
     expect(parserFixtureCounts).toEqual({
-      canonical: 47,
-      expanded: 59,
+      canonical: 53,
+      expanded: 65,
       challengeCanonical: 19,
       challengeExpanded: 31,
     })

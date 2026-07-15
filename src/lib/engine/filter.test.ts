@@ -73,7 +73,7 @@ describe('filterOptions generator contract', () => {
 
   it('rejects an option whose destination does not match the intent', () => {
     const intent = makeIntent({
-      destination: { iata: 'LHR', city: 'London' },
+      destination: { iata: 'LHR', city: 'London', assumed: false },
     })
 
     expect(() => filterOptions(intent, [makeOption()])).toThrow(

@@ -7,7 +7,12 @@ import {
   Output,
   RetryError,
 } from 'ai'
-import { parseResultSchema, type ParseResult, type TripIntent } from '../schema/trip-intent'
+import {
+  isResolvedDestination,
+  parseResultSchema,
+  type ParseResult,
+  type TripIntent,
+} from '../schema/trip-intent'
 import { buildSystemPrompt, buildUserMessage } from './prompt'
 import { ParserError, type IntentParser, type ParserContext } from './intent-parser'
 
@@ -150,7 +155,10 @@ function findMembershipIssue(
   result: ParseResult,
   supportedIataCodes: readonly string[],
 ): string | null {
-  for (const place of [result.intent.origin, result.intent.destination]) {
+  const destination = isResolvedDestination(result.intent.destination)
+    ? result.intent.destination
+    : null
+  for (const place of [result.intent.origin, destination]) {
     if (place && !supportedIataCodes.includes(place.iata)) {
       return (
         `IATA code ${place.iata} is not in the supported list: ` +
