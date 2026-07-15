@@ -301,3 +301,56 @@ computed diff. Distinct from the live-model eval, which exercises the model.
 **Live-model eval**:
 Running the fixture suite through the real parser against the real model. Where a
 model choice gets graded.
+
+### Publication and access
+
+**Public demo**:
+An anonymously accessible demonstration of Rota: no account or invitation is required,
+but access may be bot-checked, rate-limited, or temporarily suspended to keep
+owner-funded usage bounded.
+_Avoid_: unlimited public API, unrestricted access
+
+**Demo budget**:
+The $10 monthly target for paid model usage in the public demo, with automatic recharge
+disabled. Provider cutoff may lag slightly; paid interactions pause when quota is
+exhausted until the owner deliberately adds funds.
+_Avoid_: guaranteed hard cap, automatic overage
+
+**Visitor allowance**:
+The temporary per-visitor limit of 20 paid API-route requests in 10 minutes. Exhausting
+it cools down only that visitor and does not mean the Demo budget is exhausted.
+_Avoid_: demo budget, outage
+
+**Anonymous visit**:
+One visit to the public demo measured through privacy-friendly basic traffic analytics.
+Rota does not link it to an identity or custom interaction history and does not store
+raw utterances. Natural-language utterances are transmitted to the model provider for
+interpretation and may be retained under its API data policy. The hosting and analytics
+provider may process network, device, location, and request metadata under its own
+privacy notice. Its Hobby analytics dashboard has a one-month reporting window, but
+the provider may retain analytics data for longer.
+_Avoid_: anonymous session, person, user profile, recording
+
+**Quiet privacy notice**:
+A non-interrupting footer link that explains model-provider processing and the public
+demo's basic traffic analytics. It is disclosure, not a banner, toast, consent prompt,
+or message in the demo flow.
+_Avoid_: analytics banner, tracking prompt
+
+**Quiet simulation disclaimer**:
+The low-emphasis disclosure that Rota uses simulated flights and fares and is not a
+booking service. It stays outside the primary demo flow and never becomes a banner or
+prominent warning.
+_Avoid_: warning banner, hero disclaimer
+
+**Showcase mode**:
+The public demo state after the Demo budget is exhausted. It clearly explains why paid
+language features are paused while keeping preset searches, direct intent editing,
+simulated results, and deterministic explanations available.
+_Avoid_: outage, broken demo, credits error
+
+**Open-source demo**:
+Rota's public posture: MIT-licensed portfolio software whose issues and pull requests
+are welcome at the owner's discretion, without a promise of support or ongoing
+maintenance.
+_Avoid_: supported service, maintained product

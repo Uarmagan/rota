@@ -98,6 +98,21 @@ describe('handleParse', () => {
     expect(await response.json()).toEqual({ error: reason })
   })
 
+  it('reports an exhausted demo budget without presenting it as an outage', async () => {
+    const parser: IntentParser = {
+      parse: async () => {
+        throw new ParserError('budget_exhausted', 'OpenAI quota exhausted')
+      },
+    }
+
+    const response = await handleParse(validRequest(), parser, allowingGate)
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: 'demo_budget_exhausted',
+    })
+  })
+
   it('releases the model-call permit when the parser throws', async () => {
     const release = vi.fn()
     const gate: ModelCallGate = {

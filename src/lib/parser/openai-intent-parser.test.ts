@@ -1,3 +1,4 @@
+import { APICallError } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SUPPORTED_PLACES } from '../schema/places'
@@ -147,6 +148,36 @@ describe('OpenAIIntentParser', () => {
       reason: 'transport',
     })
     expect(model.doGenerateCalls).toHaveLength(1)
+  })
+
+  it('identifies an exhausted provider quota as the demo budget boundary', async () => {
+    const model = new MockLanguageModelV3({
+      doGenerate: async () => {
+        throw new APICallError({
+          message: 'You exceeded your current quota',
+          url: 'https://api.openai.com/v1/responses',
+          requestBodyValues: {},
+          statusCode: 429,
+          data: {
+            error: {
+              code: 'insufficient_quota',
+              type: 'insufficient_quota',
+            },
+          },
+        })
+      },
+    })
+    openaiMock.model = model
+
+    const parse = new OpenAIIntentParser(context).parse(
+      createEmptyTripIntent(),
+      'to tokyo',
+    )
+
+    await expect(parse).rejects.toMatchObject({
+      name: 'ParserError',
+      reason: 'budget_exhausted',
+    })
   })
 
   it.each([

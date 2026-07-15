@@ -106,6 +106,41 @@ describe('SearchApp', () => {
     expect(router.requestsFor('/api/search')).toHaveLength(0)
   })
 
+  it('distinguishes the visitor allowance from a parser outage', async () => {
+    const router = new FetchRouter()
+    router.parse.push(
+      Response.json({ error: 'rate_limited' }, { status: 429 }),
+    )
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+
+    expect(
+      await screen.findByText('Demo limit reached. Try again in a few minutes.'),
+    ).toBeTruthy()
+  })
+
+  it('explains when live AI is paused and offers a budget contact link', async () => {
+    const router = new FetchRouter()
+    router.parse.push(
+      Response.json(
+        { error: 'demo_budget_exhausted' },
+        { status: 503 },
+      ),
+    )
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+
+    expect(
+      await screen.findByText(/Live AI is paused because this month’s demo budget/),
+    ).toBeTruthy()
+    const contact = screen.getByRole('link', { name: 'Email me' })
+    expect(contact.getAttribute('href')).toBe(
+      'mailto:ugurarmagan93@gmail.com?subject=Rota%20demo%20budget',
+    )
+  })
+
   it('keeps a direct origin edit when an older parse resolves', async () => {
     const user = userEvent.setup()
     const router = new FetchRouter()

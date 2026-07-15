@@ -27,7 +27,11 @@ import { searchStream } from './stream'
 
 type ParseOutcome =
   | { ok: true; intent: TripIntent; gap: GapOutcome }
-  | { ok: false; message: string }
+  | { ok: false; error: AppError }
+
+type AppError =
+  | { kind: 'message'; message: string }
+  | { kind: 'budget_exhausted' }
 
 interface WhyLine {
   optionId: string
@@ -45,7 +49,7 @@ export function SearchApp() {
   const [streaming, setStreaming] = useState(false)
   const [batches, setBatches] = useState<readonly SourceBatch[]>([])
   const [why, setWhy] = useState<WhyLine | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<AppError | null>(null)
   const [text, setText] = useState('')
   const parseAbortRef = useRef<AbortController | null>(null)
   const parseRun = useRef(0)
@@ -107,7 +111,7 @@ export function SearchApp() {
     if (result === null || parseRun.current !== run || controller.signal.aborted) return
     setParsing(false)
     if (!result.ok) {
-      setError(result.message)
+      setError(result.error)
       setText(utterance)
       return
     }
@@ -143,7 +147,10 @@ export function SearchApp() {
     } catch {
       if (controller.signal.aborted || searchRun.current !== run) return
       setStreaming(false)
-      setError('The search stream dropped. Try again.')
+      setError({
+        kind: 'message',
+        message: 'The search stream dropped. Try again.',
+      })
     }
   }
 
@@ -187,9 +194,6 @@ export function SearchApp() {
 
   return (
     <div className="min-h-screen bg-[#0b0b0f] text-neutral-200 antialiased">
-      <span className="fixed top-4 right-4 z-40 rounded-full border border-white/10 bg-[#0b0b0f]/80 px-2.5 py-1 text-[10px] tracking-[0.15em] text-neutral-500 uppercase select-none">
-        simulated data
-      </span>
       <div
         className={`mx-auto flex w-full max-w-2xl flex-col px-6 ${
           hasIntent ? 'pt-14 pb-32' : 'min-h-screen justify-center pb-40'
@@ -264,7 +268,23 @@ export function SearchApp() {
         </div>
 
         {error !== null && (
-          <p className="mt-3 px-1 text-xs text-rose-300/90">{error}</p>
+          <p className="mt-3 px-1 text-xs text-rose-300/90" role="alert">
+            {error.kind === 'budget_exhausted' ? (
+              <>
+                Live AI is paused because this month&rsquo;s demo budget has been
+                used. Want to try natural-language search?{' '}
+                <a
+                  className="underline decoration-rose-300/40 underline-offset-2 hover:decoration-rose-200"
+                  href="mailto:ugurarmagan93@gmail.com?subject=Rota%20demo%20budget"
+                >
+                  Email me
+                </a>{' '}
+                and I&rsquo;ll top it up.
+              </>
+            ) : (
+              error.message
+            )}
+          </p>
         )}
 
         {showResults && filtered.length === 0 && options.length > 0 && !streaming && (
@@ -307,18 +327,48 @@ async function requestParse(
       const body = (await response.json()) as { intent: TripIntent; gap: GapOutcome }
       return { ok: true, intent: body.intent, gap: body.gap }
     }
+    if (response.status === 429) {
+      return {
+        ok: false,
+        error: {
+          kind: 'message',
+          message: 'Demo limit reached. Try again in a few minutes.',
+        },
+      }
+    }
+    if (
+      response.status === 503 &&
+      (await responseErrorCode(response)) === 'demo_budget_exhausted'
+    ) {
+      return { ok: false, error: { kind: 'budget_exhausted' } }
+    }
     return {
       ok: false,
-      message:
-        response.status === 422
-          ? 'I couldn’t turn that into a search. Mind rephrasing?'
-          : 'Trouble reaching the parser. Try again in a moment.',
+      error: {
+        kind: 'message',
+        message:
+          response.status === 422
+            ? 'I couldn’t turn that into a search. Mind rephrasing?'
+            : 'Trouble reaching the parser. Try again in a moment.',
+      },
     }
   } catch {
     if (signal.aborted) return null
     return {
       ok: false,
-      message: 'Trouble reaching the parser. Try again in a moment.',
+      error: {
+        kind: 'message',
+        message: 'Trouble reaching the parser. Try again in a moment.',
+      },
     }
+  }
+}
+
+async function responseErrorCode(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.json()) as { error?: unknown }
+    return typeof body.error === 'string' ? body.error : null
+  } catch {
+    return null
   }
 }

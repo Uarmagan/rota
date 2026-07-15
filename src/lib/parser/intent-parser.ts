@@ -11,7 +11,7 @@ export interface IntentParser {
 
 export class ParserError extends Error {
   constructor(
-    readonly reason: 'invalid_output' | 'transport',
+    readonly reason: 'invalid_output' | 'transport' | 'budget_exhausted',
     message: string,
   ) {
     super(message)

@@ -1,9 +1,11 @@
 import { openai } from '@ai-sdk/openai'
 import {
+  APICallError,
   generateText,
   NoObjectGeneratedError,
   NoOutputGeneratedError,
   Output,
+  RetryError,
 } from 'ai'
 import { parseResultSchema, type ParseResult, type TripIntent } from '../schema/trip-intent'
 import { buildSystemPrompt, buildUserMessage } from './prompt'
@@ -95,7 +97,12 @@ export class OpenAIIntentParser implements IntentParser {
           }
         }
       } catch (error) {
-        if (NoObjectGeneratedError.isInstance(error)) {
+        if (isBudgetExhausted(error)) {
+          throw new ParserError(
+            'budget_exhausted',
+            'The model provider quota is exhausted',
+          )
+        } else if (NoObjectGeneratedError.isInstance(error)) {
           lastFailureMessage =
             error.cause instanceof Error ? error.cause.message : error.message
           feedback = {
@@ -162,4 +169,26 @@ function formatZodIssues(issues: readonly { path: PropertyKey[]; message: string
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+const BUDGET_ERROR_PATTERN =
+  /insufficient_quota|billing_hard_limit_reached|usage_limit_reached|exceeded your current quota|credit balance/i
+
+function isBudgetExhausted(error: unknown): boolean {
+  const candidates = RetryError.isInstance(error) ? error.errors : [error]
+  return candidates.some((candidate) => {
+    if (!APICallError.isInstance(candidate)) return false
+    return [candidate.data, candidate.responseBody, candidate.message].some(
+      (value) => BUDGET_ERROR_PATTERN.test(serialized(value)),
+    )
+  })
+}
+
+function serialized(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return ''
+  }
 }

@@ -46,6 +46,12 @@ export async function handleParse(
     return Response.json({ intent, gap: checkGaps(intent, result.unhandled) })
   } catch (error) {
     if (error instanceof ParserError) {
+      if (error.reason === 'budget_exhausted') {
+        return Response.json(
+          { error: 'demo_budget_exhausted' },
+          { status: 503 },
+        )
+      }
       const status = error.reason === 'invalid_output' ? 422 : 502
       return Response.json({ error: error.reason }, { status })
     }
