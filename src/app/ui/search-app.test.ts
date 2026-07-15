@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -85,16 +85,12 @@ describe('SearchApp', () => {
     expect(screen.getByText('economy')).toBeTruthy()
     expect(screen.queryByText('parsing…')).toBeNull()
     await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(1))
-    expect(searchIntentFrom(router.requestsFor('/api/search')[0].url)).toEqual(
-      SEARCH_INTENT,
-    )
+    expect(searchIntentFrom(router.requestsFor('/api/search')[0].url)).toEqual(SEARCH_INTENT)
   })
 
   it('restores an utterance and asks for a rephrase after a rejected parse', async () => {
     const router = new FetchRouter()
-    router.parse.push(
-      Response.json({ error: 'invalid_parser_output' }, { status: 422 }),
-    )
+    router.parse.push(Response.json({ error: 'invalid_parser_output' }, { status: 422 }))
     router.install()
 
     const input = await submitUtterance('tokio maybe')
@@ -184,8 +180,8 @@ describe('SearchApp', () => {
     await waitFor(() => expect(router.requestsFor('/api/parse')).toHaveLength(2))
     const staleRequest = router.requestsFor('/api/parse')[1]
 
-    await user.click(screen.getByRole('button', { name: /from.*ORD · Chicago/i }))
-    await user.click(screen.getByRole('button', { name: /San Francisco SFO/i }))
+    await user.click(screen.getByRole('combobox', { name: /from.*ORD · Chicago/i }))
+    await user.click(await screen.findByRole('option', { name: /San Francisco.*SFO/i }))
     expect(await screen.findByText('SFO · San Francisco')).toBeTruthy()
     await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(2))
 
@@ -229,42 +225,46 @@ describe('SearchApp', () => {
     await screen.findByText('ORD · Chicago')
 
     await user.click(screen.getByRole('button', { name: /travelers.*2/i }))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Travelers' }), '3')
-    await user.click(screen.getByRole('button', { name: /from.*ORD/i }))
-    await user.click(screen.getByRole('button', { name: /San Francisco SFO/i }))
-    await user.click(screen.getByRole('button', { name: /to.*NRT/i }))
-    await user.click(screen.getByRole('button', { name: /Lisbon LIS/i }))
+    await user.click(await screen.findByRole('menuitemradio', { name: '3 travelers' }))
+    await user.click(screen.getByRole('combobox', { name: /from.*ORD/i }))
+    await user.click(await screen.findByRole('option', { name: /San Francisco.*SFO/i }))
+    await user.click(screen.getByRole('combobox', { name: /to.*NRT/i }))
+    await user.click(await screen.findByRole('option', { name: /Lisbon.*LIS/i }))
     await user.click(screen.getByRole('button', { name: /cabin.*economy/i }))
-    await user.click(screen.getByRole('button', { name: 'business' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'business' }))
     await user.click(screen.getByRole('button', { name: /dates.*Feb 3/i }))
-    const date = screen.getByLabelText('Date')
-    await user.clear(date)
-    await user.type(date, '2027-02-08')
-    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    const dates = await screen.findByRole('dialog', { name: 'Edit Dates' })
+    await user.click(
+      within(dates).getByRole('button', {
+        name: /Monday, February 8th, 2027/i,
+      }),
+    )
     await user.click(screen.getByRole('button', { name: /priority.*cheapest/i }))
-    await user.click(screen.getByRole('button', { name: 'fastest' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Fastest first' }))
     await user.click(screen.getByRole('button', { name: /nonstop.*preferred/i }))
-    await user.click(screen.getByRole('button', { name: 'required' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Required' }))
     await user.click(screen.getByRole('button', { name: /arrive by.*17:00/i }))
-    const arrive = screen.getByLabelText('Arrive by')
+    const arrivePanel = await screen.findByRole('dialog', { name: 'Edit Arrive by' })
+    const arrive = within(arrivePanel).getByLabelText('Arrive by')
     await user.clear(arrive)
     await user.type(arrive, '19:30')
-    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    await user.click(within(arrivePanel).getByRole('button', { name: 'Apply' }))
     await user.click(screen.getByRole('button', { name: /depart after.*09:00/i }))
-    const depart = screen.getByLabelText('Depart after')
+    const departPanel = await screen.findByRole('dialog', {
+      name: 'Edit Depart after',
+    })
+    const depart = within(departPanel).getByLabelText('Depart after')
     await user.clear(depart)
     await user.type(depart, '10:15')
-    await user.click(screen.getByRole('button', { name: 'Apply' }))
+    await user.click(within(departPanel).getByRole('button', { name: 'Apply' }))
     await user.click(screen.getByRole('button', { name: /red-eyes.*avoid/i }))
-    await user.click(screen.getByRole('button', { name: 'fine' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Fine' }))
     await user.click(screen.getByRole('button', { name: /late arrival.*fine/i }))
-    await user.click(screen.getByRole('button', { name: 'avoid' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Avoid' }))
 
     await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(12))
     expect(router.requestsFor('/api/parse')).toHaveLength(1)
-    expect(
-      searchIntentFrom(router.requestsFor('/api/search').at(-1)!.url),
-    ).toMatchObject({
+    expect(searchIntentFrom(router.requestsFor('/api/search').at(-1)!.url)).toMatchObject({
       travelers: 3,
       origin: { iata: 'SFO', assumed: false },
       destination: { iata: 'LIS' },
@@ -295,10 +295,12 @@ describe('SearchApp', () => {
     await submitUtterance('tokyo in feb for 2')
     await screen.findByText('Feb 3, 2027')
     await user.click(screen.getByRole('button', { name: /dates.*Feb 3/i }))
-    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    const dates = await screen.findByRole('dialog', { name: 'Edit Dates' })
+    await user.click(within(dates).getByRole('button', { name: 'Clear' }))
     expect(await screen.findByText('When?')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: /to.*NRT/i }))
+    await user.click(screen.getByRole('combobox', { name: /to.*NRT/i }))
+    await screen.findByRole('combobox', { name: 'Search airports' })
     await user.click(screen.getByRole('button', { name: 'Clear' }))
     expect(await screen.findByText('Where to?')).toBeTruthy()
     expect(router.requestsFor('/api/search')).toHaveLength(1)
@@ -320,7 +322,7 @@ describe('SearchApp', () => {
     await submitUtterance('tokyo with a window seat')
     expect(await screen.findByText(/window seat/)).toBeTruthy()
     await user.click(screen.getByRole('button', { name: /cabin.*economy/i }))
-    await user.click(screen.getByRole('button', { name: 'business' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'business' }))
 
     await waitFor(() => expect(screen.queryByText(/window seat/)).toBeNull())
     expect(router.requestsFor('/api/parse')).toHaveLength(1)
@@ -340,8 +342,8 @@ describe('SearchApp', () => {
 
     await user.type(input, 'actually business class{Enter}')
     await waitFor(() => expect(router.requestsFor('/api/parse')).toHaveLength(2))
-    await user.click(screen.getByRole('button', { name: /from.*ORD · Chicago/i }))
-    await user.click(screen.getByRole('button', { name: /San Francisco SFO/i }))
+    await user.click(screen.getByRole('combobox', { name: /from.*ORD · Chicago/i }))
+    await user.click(await screen.findByRole('option', { name: /San Francisco.*SFO/i }))
     expect(await screen.findByText('SFO · San Francisco')).toBeTruthy()
 
     await act(async () => {
@@ -349,9 +351,7 @@ describe('SearchApp', () => {
     })
 
     expect(input.value).toBe('')
-    expect(
-      screen.queryByText('Trouble reaching the parser. Try again in a moment.'),
-    ).toBeNull()
+    expect(screen.queryByText('Trouble reaching the parser. Try again in a moment.')).toBeNull()
     expect(screen.getByText('SFO · San Francisco')).toBeTruthy()
     expect(screen.queryByText('parsing…')).toBeNull()
   })
@@ -422,9 +422,7 @@ describe('SearchApp', () => {
 
     await stream.fail(new Error('connection dropped'))
 
-    expect(
-      await screen.findByText('The search stream dropped. Try again.'),
-    ).toBeTruthy()
+    expect(await screen.findByText('The search stream dropped. Try again.')).toBeTruthy()
   })
 
   it('requests one explanation and renders it only on the matching best option', async () => {
@@ -479,15 +477,13 @@ describe('SearchApp', () => {
     await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(1))
 
     await user.click(screen.getByRole('button', { name: /cabin.*economy/i }))
-    await user.click(screen.getByRole('button', { name: 'business' }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'business' }))
     await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(2))
     await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(2))
     expect(router.requestsFor('/api/parse')).toHaveLength(1)
 
     await user.click(screen.getByRole('button', { name: /09:00.*10:00/i }))
-    expect(
-      await screen.findByText('Matching why line after the direct edit.'),
-    ).toBeTruthy()
+    expect(await screen.findByText('Matching why line after the direct edit.')).toBeTruthy()
   })
 })
 
@@ -567,10 +563,7 @@ async function submitUtterance(utterance: string): Promise<HTMLInputElement> {
   return input
 }
 
-function parseResponse(
-  intent: TripIntent,
-  gap: GapOutcome = { kind: 'ready' },
-): Response {
+function parseResponse(intent: TripIntent, gap: GapOutcome = { kind: 'ready' }): Response {
   return Response.json({ intent, gap })
 }
 

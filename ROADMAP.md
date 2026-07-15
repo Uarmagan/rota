@@ -205,9 +205,10 @@ The deterministic core over flight data. Pure TS, no mocks.
   whether dates deserve promotion to a real follow-up is an open M6 question.
 - Filtered-out inventory is visible ("n options hidden by your filters"), keeping
   principle 1 honest at the results layer.
-- Native controls remain sufficient for the complete M5 chip-editor set; no component
-  library was added. Reconsider a shared primitive only with a broader design-system
-  need, not for these field editors alone.
+- M5 originally shipped with native chip-editor controls and no component library.
+  Revisited for M7: adopt shadcn selectively for the chip-editor primitive layer and
+  give those controls a focused visual refresh. Preserve the custom chip shell, Palette
+  search surface, results layout, overall color language, and existing diff motion.
 
 ## M6 — Google-Flights pivot
 
@@ -231,11 +232,42 @@ The deterministic core over flight data. Pure TS, no mocks.
       cases) for named-party inference, named airports, noisy fragments, metamorphic
       wording families, role/count minimal pairs, self-correction, explicit waivers,
       and unsupported place qualifiers
+- [x] Refresh chip-editor primitives with selectively styled shadcn components while
+      preserving the surrounding Palette UI and product-specific chip behavior
 - [ ] Walk the demo path against the success criteria: first result <3s, three-utterance
       refinement journey, zero LLM numbers (guard verified in an e2e pass)
 - [ ] Graceful degradation pass on hostile fixtures through the real UI
 - [x] README with run instructions and a verified live-demo screenshot (2026-07-14)
 - **Done when:** a first-time viewer understands it in one query, no narration.
+
+### Decided during M7 chip-editor refresh
+
+- The Date window editor uses one shadcn Calendar with an Exact/Flexible segmented
+  control. Exact selects one calendar day; Flexible selects and visibly highlights an
+  earliest-to-latest range, preserving the existing DateWindow schema.
+- Origin and Destination use searchable shadcn Combobox editors with city and IATA
+  matching, keyboard navigation, and a visible current selection. Picking the current
+  assumed origin confirms it, preserving the existing assumption transition.
+- Travelers, Cabin, Priority, Nonstop, Red-eyes, and Late arrival use one consistent
+  shadcn Dropdown Menu pattern: direct options, a checked current value, and a Clear
+  action only for fields whose schema permits null. Avoid nesting Select inside a
+  Popover for these one-step choices.
+- Arrive-by and Depart-after use a styled native `type="time"` control through the
+  shadcn Input primitive inside a refreshed Popover, with explicit Apply and Clear
+  buttons. Preserve exact `HH:mm` values rather than imposing fixed time increments.
+- Airport picks and complete calendar choices commit immediately and close their
+  editor. Exact dates commit on one day; Flexible dates commit only after both range
+  endpoints exist. Time edits retain Apply so partial typed values never re-search.
+- Airport, Date window, and Time editors use anchored Popovers on desktop and shadcn
+  Drawers on narrow mobile screens. Simple-choice Dropdown Menus remain anchored on
+  both layouts. The responsive editor changes do not alter the surrounding Palette UI.
+- Keep chip triggers at their current compact density. Open editors use roomier
+  36–40px rows, clearer hover/selected states, and quiet Lucide icons. Their tokens stay
+  in Rota's charcoal, fine-white-border, indigo-selection language; amber remains
+  reserved for assumptions.
+- Initialize shadcn on Base UI primitives, not Radix. Add only the primitives needed
+  by the chip-editor refresh and preserve Rota's existing global Palette styling rather
+  than accepting a generated app-wide theme reset.
 
 ## Explicitly parked (phase 2, per PRD)
 
