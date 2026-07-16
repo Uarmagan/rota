@@ -106,7 +106,7 @@ export function Results({
             <span> · {hidden} hidden by your filters</span>
           )}
         </span>
-        <span className={streaming ? 'text-indigo-300/80' : ''}>
+        <span className={streaming ? 'text-cyan-300/80' : ''}>
           {sourcesDone}/{sourcesTotal} sources
         </span>
       </header>
@@ -371,7 +371,7 @@ function Row({
         aria-expanded={expanded}
         aria-controls={detailsId}
         onClick={onToggle}
-        className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-x-5 py-3 pr-2 pl-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+        className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-x-5 py-3 pr-2 pl-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
       >
         <span>
           <span className="block text-[15px] font-medium text-neutral-100 tabular-nums">
@@ -400,7 +400,7 @@ function Row({
             <span
               key={option.id}
               style={{ animationDelay: `${badgeDelayMs}ms` }}
-              className="rota-badge inline-block rounded bg-indigo-400/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300"
+              className="rota-badge inline-block rounded bg-cyan-400/15 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-300"
             >
               ★ BEST
             </span>

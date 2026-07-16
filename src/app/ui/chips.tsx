@@ -58,7 +58,7 @@ export interface ChipAnimation {
 
 const CHIP_BASE = 'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs'
 const CHIP_TRIGGER_INTERACTION =
-  'rota-press cursor-pointer hover:border-white/25 focus-visible:border-indigo-300/70 focus-visible:ring-2 focus-visible:ring-indigo-300/30'
+  'rota-press cursor-pointer hover:border-white/25 focus-visible:border-white/50 focus-visible:ring-2 focus-visible:ring-white/20'
 
 type SimpleField =
   | 'travelers'
@@ -408,14 +408,14 @@ function DateEditorContent({
           <ToggleGroupItem
             value="exact"
             aria-label="Exact"
-            className="h-8 border-white/10 text-[11px] text-neutral-400 data-pressed:bg-indigo-300/15 data-pressed:text-indigo-200"
+            className="h-8 border-white/10 text-[11px] text-neutral-400 data-pressed:bg-cyan-300/15 data-pressed:text-cyan-200"
           >
             Exact
           </ToggleGroupItem>
           <ToggleGroupItem
             value="flexible"
             aria-label="Flexible"
-            className="h-8 border-white/10 text-[11px] text-neutral-400 data-pressed:bg-indigo-300/15 data-pressed:text-indigo-200"
+            className="h-8 border-white/10 text-[11px] text-neutral-400 data-pressed:bg-cyan-300/15 data-pressed:text-cyan-200"
           >
             Flexible
           </ToggleGroupItem>
@@ -597,7 +597,7 @@ function TimeEditorContent({
           type="time"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          className="h-10 border-white/10 bg-white/[0.04] text-sm text-neutral-100 [color-scheme:dark] focus-visible:border-indigo-300/60 focus-visible:ring-indigo-300/20"
+          className="h-10 border-white/10 bg-white/[0.04] text-sm text-neutral-100 [color-scheme:dark] focus-visible:border-white/40 focus-visible:ring-white/15"
         />
       </label>
       <div className="flex items-center justify-between border-t border-white/[0.07] pt-3">
@@ -616,7 +616,7 @@ function TimeEditorContent({
           size="sm"
           disabled={value === ''}
           onClick={() => onApply(value)}
-          className="bg-indigo-300 text-[#0b0b0f] hover:bg-indigo-200"
+          className="hover:bg-cyan-200"
         >
           Apply
         </Button>
@@ -836,7 +836,7 @@ function AirportOptions({
               {place.iata}
             </span>
             {place.iata === currentIata && assumed && (
-              <span className="text-[10px] text-amber-300/80">confirm</span>
+              <span className="text-[10px] text-neutral-400">confirm</span>
             )}
           </ComboboxItem>
         )}
@@ -924,10 +924,10 @@ function chipClasses(chip: RowChipView, animation: ChipAnimation | undefined): s
     CHIP_BASE,
     chip.unfilled
       ? chip.emphasized
-        ? 'border-dashed border-indigo-300/60 bg-indigo-300/[0.08]'
+        ? 'border-dashed border-white/40 bg-white/[0.06]'
         : 'border-dashed border-white/[0.14] bg-white/[0.02]'
       : chip.assumed
-        ? 'border-dashed border-amber-400/40 bg-amber-400/[0.06]'
+        ? 'border-dashed border-white/[0.18] bg-white/[0.03]'
         : 'border-white/10 bg-white/[0.06]',
     animation?.kind === 'set' ? 'rota-pop' : '',
     animation?.kind === 'changed' ? 'rota-flash' : '',
@@ -944,7 +944,7 @@ function ChipBody({ chip }: { chip: RowChipView }) {
   if (chip.unfilled) {
     return (
       <span
-        className={`font-medium ${chip.emphasized ? 'text-indigo-200' : 'text-neutral-400'}`}
+        className={`font-medium ${chip.emphasized ? 'text-neutral-100' : 'text-neutral-400'}`}
       >
         {PROMPT_LABELS[chip.field] ?? chip.label}
       </span>
@@ -954,7 +954,7 @@ function ChipBody({ chip }: { chip: RowChipView }) {
     <span className="inline-flex items-baseline gap-1.5">
       <span className="text-[10px] tracking-wide text-neutral-500 uppercase">{chip.label}</span>
       <span className="font-medium text-neutral-100">{chip.value}</span>
-      {chip.assumed && <span className="text-[10px] text-amber-400/90">assumed</span>}
+      {chip.assumed && <span className="text-[10px] text-muted-foreground">assumed</span>}
     </span>
   )
 }

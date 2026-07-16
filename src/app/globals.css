@@ -37,7 +37,9 @@
   --card-foreground: #e5e5e5;
   --popover: #17171f;
   --popover-foreground: #f5f5f5;
-  --primary: #818cf8;
+  /* Solid cyan fills (calendar selection, primary buttons). Tints and glows
+     use the deeper #22d3ee grade. */
+  --primary: #67e8f9;
   --primary-foreground: #0b0b0f;
   --secondary: #23232d;
   --secondary-foreground: #e5e5e5;
@@ -49,7 +51,7 @@
   --destructive: #fda4af;
   --border: rgb(255 255 255 / 10%);
   --input: rgb(255 255 255 / 12%);
-  --ring: #818cf8;
+  --ring: #ffffff99;
   --radius: 0.625rem;
 }
 

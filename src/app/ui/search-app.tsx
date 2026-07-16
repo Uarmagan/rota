@@ -313,7 +313,7 @@ export function SearchApp() {
           </p>
         )}
 
-        <div className="rounded-xl border border-white/10 bg-white/[0.04] transition-colors focus-within:border-indigo-300/40">
+        <div className="rounded-xl border border-white/10 bg-white/[0.04] transition-colors focus-within:border-white/25">
           {intent !== null && (
             <ChipsRow
               intent={intent}
