@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-15T00:00:00Z",
+  "title": "Design System: Rota",
+  "extensions": {
+    "colorMeta": {
+      "radar-cyan-bright": { "role": "primary", "displayName": "Radar Cyan Bright", "canonical": "#67e8f9", "tonalRamp": ["oklch(25% 0.06 215)", "oklch(35% 0.08 215)", "oklch(45% 0.10 215)", "oklch(55% 0.11 215)", "oklch(65% 0.12 215)", "oklch(75% 0.12 215)", "oklch(85% 0.11 215)", "oklch(93% 0.07 215)"] },
+      "radar-cyan": { "role": "primary", "displayName": "Radar Cyan (tint/glow)", "canonical": "#22d3ee" },
+      "night-ground": { "role": "neutral", "displayName": "Night Ground", "canonical": "#0b0b0f", "tonalRamp": ["#0b0b0f", "#111117", "#17171f", "#23232d", "#3a3a46", "#5c5c68", "#94949e", "#e5e5e5"] },
+      "panel": { "role": "neutral", "displayName": "Panel", "canonical": "#111117" },
+      "floating-panel": { "role": "neutral", "displayName": "Floating Panel", "canonical": "#17171f" },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#e5e5e5" },
+      "ink-muted": { "role": "neutral", "displayName": "Ink Muted", "canonical": "#94949e" },
+      "rose-alert": { "role": "tertiary", "displayName": "Rose Alert", "canonical": "#fda4af" }
+    },
+    "typographyMeta": {
+      "body": { "displayName": "Body", "purpose": "Search input and result rows — the working size of the app." },
+      "label": { "displayName": "Whisper Label", "purpose": "Uppercase tracked 10px field labels inside chips and editors." },
+      "data": { "displayName": "Data Mono", "purpose": "IATA airport codes." }
+    },
+    "shadows": [
+      { "name": "winner-lift", "value": "inset 0 1px 0 rgba(255,255,255,0.09), inset 0 0 0 1px rgba(255,255,255,0.055)", "purpose": "Lit-from-above inset on the best-result slab. One element per screen." },
+      { "name": "verdict-bloom", "value": "0 0 0 1px rgba(103,232,249,0.55), 0 0 20px 2px rgba(34,211,238,0.3)", "purpose": "One-shot settle bloom around the winner; animates in and fades out." }
+    ],
+    "motion": [
+      { "name": "ease-out-strong", "value": "cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Default easing for pops, rows, presses, expands." },
+      { "name": "ease-in-out-strong", "value": "cubic-bezier(0.77, 0, 0.175, 1)", "purpose": "Symmetric easing for held movements." },
+      { "name": "duration-state", "value": "250ms", "purpose": "Chip pops and row landings." },
+      { "name": "duration-press", "value": "160ms", "purpose": "Pressable scale-down." }
+    ],
+    "breakpoints": [
+      { "name": "mobile-editor", "value": "768px", "purpose": "Below this, chip editors render as drawers instead of popovers." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A parsed intent fact: whisper label plus value, tappable to edit.",
+      "html": "<button class=\"ds-chip\"><span class=\"ds-chip-label\">To</span><span class=\"ds-chip-value\">Tokyo NRT</span></button>",
+      "css": ".ds-chip { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.06); border-radius: 8px; padding: 4px 8px; font-size: 12px; cursor: pointer; transition: transform 160ms cubic-bezier(0.23,1,0.32,1), border-color 150ms ease; } .ds-chip:hover { border-color: rgba(255,255,255,0.25); } .ds-chip:focus-visible { outline: none; border-color: rgba(255,255,255,0.5); box-shadow: 0 0 0 2px rgba(255,255,255,0.2); } .ds-chip:active { transform: scale(0.97); } .ds-chip-label { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: #94949e; } .ds-chip-value { font-weight: 500; color: #f5f5f5; }"
+    },
+    {
+      "name": "Assumed Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A stated assumption: dashed border, visibly provisional, one tap to change.",
+      "html": "<button class=\"ds-chip-assumed\"><span class=\"ds-chip-label\">From</span><span class=\"ds-chip-value\">Chicago ORD</span><span class=\"ds-chip-hint\">assumed</span></button>",
+      "css": ".ds-chip-assumed { display: inline-flex; align-items: baseline; gap: 6px; border: 1px dashed rgba(255,255,255,0.18); background: rgba(255,255,255,0.03); border-radius: 8px; padding: 4px 8px; font-size: 12px; cursor: pointer; transition: border-color 150ms ease; } .ds-chip-assumed:hover { border-color: rgba(255,255,255,0.25); } .ds-chip-assumed:focus-visible { outline: none; border-color: rgba(255,255,255,0.5); box-shadow: 0 0 0 2px rgba(255,255,255,0.2); } .ds-chip-label { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: #94949e; } .ds-chip-value { font-weight: 500; color: #f5f5f5; } .ds-chip-hint { font-size: 10px; color: #a3a3ad; }"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The rare committed action (Apply in editors). Cyan fill, dark text.",
+      "html": "<button class=\"ds-btn-primary\">Apply</button>",
+      "css": ".ds-btn-primary { background: #67e8f9; color: #0b0b0f; border: none; border-radius: 8px; height: 32px; padding: 0 12px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color 150ms ease, transform 160ms cubic-bezier(0.23,1,0.32,1); } .ds-btn-primary:hover { background: #a5f3fc; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.4); } .ds-btn-primary:active { transform: scale(0.97); } .ds-btn-primary:disabled { opacity: 0.5; cursor: default; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Secondary actions (Clear). Whispers until touched.",
+      "html": "<button class=\"ds-btn-ghost\">Clear</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #94949e; border: none; border-radius: 8px; height: 32px; padding: 0 10px; font-size: 13px; cursor: pointer; transition: background-color 150ms ease, color 150ms ease; } .ds-btn-ghost:hover { background: rgba(255,255,255,0.06); color: #e5e5e5; } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.2); }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "chip",
+      "description": "The one way in: chromeless input inside a hairline shell that brightens on focus.",
+      "html": "<div class=\"ds-search\"><input class=\"ds-search-input\" placeholder=\"business class to tokyo in february for 2\" /></div>",
+      "css": ".ds-search { border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.04); border-radius: 14px; padding: 0 16px; transition: border-color 150ms ease; } .ds-search:focus-within { border-color: rgba(255,255,255,0.25); } .ds-search-input { width: 100%; background: transparent; border: none; outline: none; padding: 14px 0; font-size: 15px; color: #f5f5f5; } .ds-search-input::placeholder { color: #94949e; }"
+    },
+    {
+      "name": "Best Badge",
+      "kind": "custom",
+      "refersTo": "best-badge",
+      "description": "The indicator lamp: marks the current winner, moves as results re-rank.",
+      "html": "<span class=\"ds-best-badge\">★ BEST</span>",
+      "css": ".ds-best-badge { display: inline-block; background: rgba(34,211,238,0.15); color: #67e8f9; border-radius: 6px; padding: 2px 6px; font-size: 10px; font-weight: 600; }"
+    },
+    {
+      "name": "Floating Panel",
+      "kind": "card",
+      "refersTo": "popover",
+      "description": "Popover/menu surface: the highest tonal layer, the only place shadows live.",
+      "html": "<div class=\"ds-panel\"><p class=\"ds-panel-label\">Cabin</p><p class=\"ds-panel-item\">business</p></div>",
+      "css": ".ds-panel { background: #17171f; border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; padding: 6px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -4px rgba(0,0,0,0.4); min-width: 176px; } .ds-panel-label { margin: 0; padding: 6px 10px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #94949e; } .ds-panel-item { margin: 0; padding: 8px 10px; border-radius: 10px; font-size: 12px; color: #e5e5e5; cursor: pointer; } .ds-panel-item:hover { background: rgba(255,255,255,0.07); color: #fff; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Night Cockpit",
+    "overview": "Rota's surface is a dark instrument panel: calm, legible, everything dimmed except what matters right now. The near-black ground recedes; structure is drawn with hairline white-alpha borders and tonal fills rather than color or ornament. Type stays small and quiet, data runs in tabular figures and mono airport codes, and the single cyan indicator lights up only when the instrument has something to report — the best result, the settled verdict, the parse in progress.",
+    "keyCharacteristics": [
+      "Near-black tonal layering; hairline borders carry all structure",
+      "One accent (Radar Cyan) reserved for system signals, never decoration",
+      "Small, quiet type; tabular numerals and mono codes for data",
+      "Motion as a named state vocabulary, every animation with a reduced-motion fallback"
+    ],
+    "rules": [
+      { "name": "The One Lamp Rule", "body": "Radar Cyan appears only when the system has something to report: the best-match badge, the settle bloom, the parse sweep, a pressed toggle, a streaming counter. It never appears at rest and never as decoration. If cyan covers more than a few percent of the screen, something is wrong.", "section": "colors" },
+      { "name": "The Hairline Rule", "body": "Structure is drawn with white-alpha hairlines at 6–12% and tonal fills at 2–7%. Never solid gray borders, never colored side-stripes.", "section": "colors" },
+      { "name": "The Whisper Label Rule", "body": "Labels are 10px, uppercase, letter-spaced, and muted. They identify; the value they sit next to carries the weight.", "section": "typography" },
+      { "name": "The Lit-From-Above Rule", "body": "Resting surfaces are flat. The inset top highlight marks exactly one element per screen — the current winner. Shadows appear only under layers that actually float.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do reserve Radar Cyan for system signals (best badge, verdict bloom, parse sweep, pressed states). The One Lamp Rule is the identity.",
+      "Do keep Ink Muted (#94949e) as the floor for body-size text — it is tuned for ≥4.5:1 on the ground and the best slab.",
+      "Do use tabular-nums on every price, time, and count that can re-rank or stream.",
+      "Do give every animation a prefers-reduced-motion alternative (fade or pulse), matching the existing search.css pattern.",
+      "Do make state changes visible: chips pop when set, flash when changed; rows land; the badge pops when it moves."
+    ],
+    "donts": [
+      "Don't build chatbot UI: no chat bubbles, no scrolling transcript, no \"assistant is typing\" theater.",
+      "Don't import legacy OTA clutter: no filter walls, banner noise, urgency badges, or cramped result rows.",
+      "Don't add generic AI-product gloss: no sparkle icons, no purple gradients, no \"magic\" framing, no glassmorphism.",
+      "Don't use colored side-stripes, gradient text, or a second accent hue; warmth belongs only to Rose Alert, and only for errors.",
+      "Don't animate at rest. Looping motion is allowed only for genuinely indeterminate states (shimmer, progress sweep)."
+    ]
+  }
+}

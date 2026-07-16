@@ -14,3 +14,7 @@ Read `CLAUDE.md` before making changes; it owns project invariants and documenta
 - Use `import type` for type-only imports.
 - Represent schema absence with `.nullable()`, never `.optional()`.
 - Preserve the module boundaries enforced by `src/lib/import-boundaries.test.ts`.
+
+## Design Context
+
+Design work reads `PRODUCT.md` (strategy: product register, web platform, users, positioning, anti-references) and `DESIGN.md` (visual system: "The Night Cockpit" — near-black tonal layering, hairline borders, single Radar Cyan accent under the One Lamp Rule) before changing any UI. Both live at the repo root.
