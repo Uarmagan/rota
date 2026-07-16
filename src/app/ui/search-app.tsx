@@ -7,6 +7,7 @@
 // streamed batches; the server only parses, streams, and phrases.
 
 import { useEffect, useRef, useState } from 'react'
+import { Search as SearchIcon } from 'lucide-react'
 import './search.css'
 import { SIMULATED_SOURCES } from '../../lib/availability/sources'
 import type { SourceBatch } from '../../lib/availability/types'
@@ -26,6 +27,7 @@ import {
   isDemoApiErrorCode,
   type DemoApiErrorCode,
 } from '../../lib/server/demo-api-errors'
+import { useIsMobile } from '@/app/ui/hooks/use-mobile'
 import { ChipsRow, type ChipAnimation, type ChipAnimationKind } from './chips'
 import { Results } from './results'
 import { searchStream } from './stream'
@@ -84,6 +86,7 @@ export function SearchApp() {
   const [error, setError] = useState<AppError | null>(null)
   const [text, setText] = useState('')
   const [sendOff, setSendOff] = useState<string | null>(null)
+  const isMobile = useIsMobile()
   const parseAbortRef = useRef<AbortController | null>(null)
   const parseRun = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
@@ -294,7 +297,7 @@ export function SearchApp() {
   return (
     <div className="min-h-screen bg-[#0b0b0f] text-neutral-200 antialiased">
       <main
-        className={`mx-auto flex w-full max-w-2xl flex-col px-6 ${
+        className={`mx-auto flex w-full max-w-2xl flex-col px-4 sm:px-6 ${
           hasIntent ? 'pt-14 pb-32' : 'min-h-screen justify-center pb-40'
         }`}
       >
@@ -343,27 +346,44 @@ export function SearchApp() {
               <input
                 autoFocus
                 aria-label="Describe your trip"
+                enterKeyHint="search"
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 placeholder={
                   intent === null || intent.destination === null
-                    ? 'Where to? Try “Tokyo in February for two”'
+                    ? isMobile
+                      ? 'Where to? Try “Tokyo in February”'
+                      : 'Where to? Try “Tokyo in February for two”'
                     : intent.dates === null
                       ? 'When works? Try “in February”'
-                      : 'Anything else? Try “business class, nonstop if possible”'
+                      : isMobile
+                        ? 'Anything else? Try “nonstop only”'
+                        : 'Anything else? Try “business class, nonstop if possible”'
                 }
-                className="w-full bg-transparent py-3.5 text-[15px] text-neutral-100 placeholder-muted-foreground outline-none"
+                className="w-full bg-transparent py-3.5 text-base text-neutral-100 placeholder-muted-foreground outline-none md:text-[15px]"
               />
               {sendOff !== null && (
                 <span
                   aria-hidden
                   onAnimationEnd={() => setSendOff(null)}
-                  className="rota-send-off pointer-events-none absolute inset-0 flex items-center truncate text-[15px] text-neutral-100 select-none"
+                  className="rota-send-off pointer-events-none absolute inset-0 flex items-center truncate text-base text-neutral-100 select-none md:text-[15px]"
                 >
                   {sendOff}
                 </span>
               )}
             </span>
+            <button
+              type="submit"
+              aria-label="Search"
+              disabled={text.trim() === '' || parsing}
+              className={`flex size-8 shrink-0 items-center justify-center rounded-md transition-colors md:hidden ${
+                text.trim() === '' || parsing
+                  ? 'text-neutral-600'
+                  : 'bg-primary text-primary-foreground active:bg-cyan-200'
+              }`}
+            >
+              <SearchIcon aria-hidden="true" className="size-4" />
+            </button>
           </form>
 
           {parsing && (

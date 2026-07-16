@@ -371,10 +371,10 @@ function Row({
         aria-expanded={expanded}
         aria-controls={detailsId}
         onClick={onToggle}
-        className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-x-5 py-3 pr-2 pl-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+        className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-x-3 py-3 pr-2 pl-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 sm:gap-x-5"
       >
         <span>
-          <span className="block text-[15px] font-medium text-neutral-100 tabular-nums">
+          <span className="block text-[15px] font-medium whitespace-nowrap text-neutral-100 tabular-nums">
             {departTime(option)} → {arriveTime(option)}
             {dayOffset > 0 && (
               <sup className="text-[9px] text-muted-foreground">+{dayOffset}</sup>
@@ -385,15 +385,15 @@ function Row({
           </span>
         </span>
         <span className="text-right">
-          <span className="block text-xs text-neutral-300">
+          <span className="block text-xs whitespace-nowrap text-neutral-300">
             {formatDuration(option.totalDurationMinutes)}
           </span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
             {stopsLabel(option)}
           </span>
         </span>
-        <span className="w-24 text-right">
-          <span className="block text-base font-semibold text-neutral-50 tabular-nums">
+        <span className="text-right">
+          <span className="block text-base font-semibold whitespace-nowrap text-neutral-50 tabular-nums">
             {formatUsd(price.totalUsd)}
           </span>
           {isBest && (

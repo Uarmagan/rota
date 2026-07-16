@@ -56,7 +56,8 @@ export interface ChipAnimation {
   delayMs: number
 }
 
-const CHIP_BASE = 'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs'
+const CHIP_BASE =
+  'inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs pointer-coarse:px-2.5 pointer-coarse:py-1.5'
 const CHIP_TRIGGER_INTERACTION =
   'rota-press cursor-pointer hover:border-white/25 focus-visible:border-white/50 focus-visible:ring-2 focus-visible:ring-white/20'
 
@@ -218,7 +219,7 @@ export function ChipsRow({
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5 border-b border-white/[0.06] px-3 pt-3 pb-2.5">
+    <div className="flex flex-wrap gap-1.5 border-b border-white/[0.06] px-3 pt-3 pb-2.5 pointer-coarse:gap-2">
       {chips.map((chip) => {
         if (chip.field === 'origin' || chip.field === 'destination') {
           return (
@@ -597,7 +598,7 @@ function TimeEditorContent({
           type="time"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          className="h-10 border-white/10 bg-white/[0.04] text-sm text-neutral-100 [color-scheme:dark] focus-visible:border-white/40 focus-visible:ring-white/15"
+          className="h-10 border-white/10 bg-white/[0.04] text-base text-neutral-100 [color-scheme:dark] focus-visible:border-white/40 focus-visible:ring-white/15 md:text-sm"
         />
       </label>
       <div className="flex items-center justify-between border-t border-white/[0.07] pt-3">
@@ -710,7 +711,7 @@ function AirportChip({
                 showTrigger={false}
                 aria-label="Search airports"
                 placeholder="Search city or airport code"
-                className="w-full **:data-[slot=input-group-control]:h-10 **:data-[slot=input-group-control]:text-sm"
+                className="w-full **:data-[slot=input-group-control]:h-10 **:data-[slot=input-group-control]:text-base"
               />
               <AirportOptions currentIata={current?.iata ?? null} assumed={assumed} inline />
               {field === 'destination' && current !== null && (
