@@ -66,11 +66,83 @@ const BETTER_OPTION: FlightOption = {
 
 afterEach(() => {
   cleanup()
+  sessionStorage.clear()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
 describe('SearchApp', () => {
+  it('restores partial chips and a destination prompt without searching', async () => {
+    const router = new FetchRouter()
+    router.install()
+    sessionStorage.setItem(
+      'rota:intent:v1',
+      JSON.stringify({ ...SEARCH_INTENT, destination: null }),
+    )
+
+    render(createElement(SearchApp))
+
+    expect(await screen.findByText('ORD · Chicago')).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: 'Where to?' })).toBeTruthy()
+    expect(router.requestsFor('/api/search')).toHaveLength(0)
+    expect(router.requestsFor('/api/parse')).toHaveLength(0)
+  })
+
+  it('restores a searchable intent without requesting a why-line', async () => {
+    const router = new FetchRouter()
+    router.search.push(
+      sseResponse([batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]),
+    )
+    router.install()
+    sessionStorage.setItem('rota:intent:v1', JSON.stringify(SEARCH_INTENT))
+
+    render(createElement(SearchApp))
+
+    expect(await screen.findByText('NRT · Tokyo')).toBeTruthy()
+    expect(await screen.findByText('★ BEST')).toBeTruthy()
+    expect(router.requestsFor('/api/search')).toHaveLength(1)
+    expect(router.requestsFor('/api/parse')).toHaveLength(0)
+    expect(router.requestsFor('/api/explain')).toHaveLength(0)
+  })
+
+  it('shows the blank landing page when the stored intent is invalid', () => {
+    const router = new FetchRouter()
+    router.install()
+    sessionStorage.setItem('rota:intent:v1', '{')
+
+    render(createElement(SearchApp))
+
+    expect(screen.getByRole('heading', { name: 'Rota' })).toBeTruthy()
+    expect(
+      screen.getByPlaceholderText('Where to? Try “Tokyo in February for two”'),
+    ).toBeTruthy()
+    expect(screen.queryByText('ORD · Chicago')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(router.requests).toHaveLength(0)
+  })
+
+  it('requests a why-line again after editing a restored intent', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    const businessOption = { ...BETTER_OPTION, cabin: 'business' as const }
+    router.search.push(
+      sseResponse([batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]),
+      sseResponse([batchFrame(batch('aurora', businessOption)), doneFrame()]),
+    )
+    router.explain.push(Response.json({ text: 'Best after the direct edit.' }))
+    router.install()
+    sessionStorage.setItem('rota:intent:v1', JSON.stringify(SEARCH_INTENT))
+    render(createElement(SearchApp))
+    await screen.findByText('★ BEST')
+    expect(router.requestsFor('/api/explain')).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: /cabin.*economy/i }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'business' }))
+
+    await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(2))
+    await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(1))
+  })
+
   it('renders normalized chips and searches with the returned full intent', async () => {
     const router = new FetchRouter()
     router.parse.push(parseResponse(SEARCH_INTENT))
@@ -86,6 +158,20 @@ describe('SearchApp', () => {
     expect(screen.queryByRole('status')).toBeNull()
     await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(1))
     expect(searchIntentFrom(router.requestsFor('/api/search')[0].url)).toEqual(SEARCH_INTENT)
+  })
+
+  it('stores a committed intent after parsing', async () => {
+    const router = new FetchRouter()
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(sseResponse([doneFrame()]))
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+    await screen.findByText('NRT · Tokyo')
+
+    expect(JSON.parse(sessionStorage.getItem('rota:intent:v1') ?? 'null')).toEqual(
+      SEARCH_INTENT,
+    )
   })
 
   it('restores an utterance and asks for a rephrase after a rejected parse', async () => {

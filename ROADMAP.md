@@ -236,6 +236,9 @@ The deterministic core over flight data. Pure TS, no mocks.
       preserving the surrounding Palette UI and product-specific chip behavior
 - [x] Resolve closed-list country destinations in the engine as visible, editable
       assumptions, with unsupported countries and regions staying on existing paths
+- [x] Restore the committed TripIntent after a same-tab refresh, including partial
+      chip state and a free search re-run without parser or why-line model calls
+      (issue #10, 2026-07-16)
 - [ ] Walk the demo path against the success criteria: first result <3s, three-utterance
       refinement journey, zero LLM numbers (guard verified in an e2e pass)
 - [ ] Graceful degradation pass on hostile fixtures through the real UI
