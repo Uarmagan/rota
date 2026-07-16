@@ -21,9 +21,13 @@ export function renderComparison(comparison: OptionComparison): string {
   return [
     renderDelta(comparison.stopsDelta, 'stop', 'more', 'fewer', 'same stops'),
     renderDurationDelta(comparison.durationDeltaMinutes, 'slower', 'faster'),
-    renderArrivalDelta(comparison.arrivalDeltaMinutes),
+    comparison.arrivalDeltaMinutes === null
+      ? ''
+      : renderArrivalDelta(comparison.arrivalDeltaMinutes),
     renderPriceDelta(comparison.totalUsdDelta),
-  ].join('; ')
+  ]
+    .filter(Boolean)
+    .join('; ')
 }
 
 export function renderFacts(facts: ExplanationFacts): string {

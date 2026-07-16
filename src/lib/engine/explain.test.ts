@@ -125,6 +125,35 @@ describe('explainOption result-set comparisons', () => {
     })
   })
 
+  it('omits the arrival delta when the options depart on different days', () => {
+    const { cheapest, fastest, intent } = makeComparisonScenario()
+    const laterDay = makeOption({
+      id: 'later-day',
+      totalDurationMinutes: 900,
+      pricing: { priceUsd: 500 },
+      segments: [
+        {
+          from: 'SFO',
+          to: 'NRT',
+          departLocal: '2027-02-24T10:00',
+          arriveLocal: '2027-02-25T18:00',
+          flight: 'UA 301',
+        },
+      ],
+    })
+
+    const facts = explainOption(intent, [laterDay, fastest], fastest.id)
+    expect(facts.vsCheapest).toEqual({
+      stopsDelta: 1,
+      durationDeltaMinutes: -300,
+      arrivalDeltaMinutes: null,
+      totalUsdDelta: 200,
+    })
+
+    const sameDay = explainOption(intent, [cheapest, fastest], fastest.id)
+    expect(sameDay.vsCheapest?.arrivalDeltaMinutes).toBe(-360)
+  })
+
   it('uses ascending id to break a cheapest-price tie', () => {
     const earlier = makeOption({ id: 'a-option' })
     const later = makeOption({ id: 'z-option' })

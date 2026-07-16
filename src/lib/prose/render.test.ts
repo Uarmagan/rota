@@ -52,6 +52,17 @@ describe('prose renderers', () => {
     ).toBe('2 fewer stops; 45m faster; arrives 15m later; $120 cheaper')
   })
 
+  it('omits the arrival clause for cross-day comparisons', () => {
+    expect(
+      renderComparison({
+        stopsDelta: 1,
+        durationDeltaMinutes: 130,
+        arrivalDeltaMinutes: null,
+        totalUsdDelta: 80,
+      }),
+    ).toBe('1 more stop; 2h 10m slower; $80 more')
+  })
+
   it('omits null and false fact lines', () => {
     expect(renderFacts(facts)).toBe(
       [

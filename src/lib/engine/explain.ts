@@ -1,5 +1,5 @@
 import type { TripIntent } from '../schema/trip-intent'
-import { wallClockMinutes } from './clock'
+import { datePart, wallClockMinutes } from './clock'
 import { computePartyPrice } from './pricing'
 import { bestMatch, rankOptions } from './rank'
 import type {
@@ -63,13 +63,17 @@ function compareOptions(
 ): OptionComparison {
   const optionArrival = option.segments.at(-1)!.arriveLocal
   const referenceArrival = reference.segments.at(-1)!.arriveLocal
+  const sameDepartureDay =
+    datePart(option.segments[0].departLocal) ===
+    datePart(reference.segments[0].departLocal)
 
   return {
     stopsDelta: option.segments.length - reference.segments.length,
     durationDeltaMinutes:
       option.totalDurationMinutes - reference.totalDurationMinutes,
-    arrivalDeltaMinutes:
-      wallClockMinutes(optionArrival) - wallClockMinutes(referenceArrival),
+    arrivalDeltaMinutes: sameDepartureDay
+      ? wallClockMinutes(optionArrival) - wallClockMinutes(referenceArrival)
+      : null,
     totalUsdDelta:
       computePartyPrice(option.pricing, travelers).totalUsd -
       computePartyPrice(reference.pricing, travelers).totalUsd,

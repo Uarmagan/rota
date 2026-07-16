@@ -146,12 +146,14 @@ function addComparisonMaxima(
     NUMERIC_MAXIMA.comparisonDurationMinutes,
     context,
   )
-  addAbsoluteMaximum(
-    comparison.arrivalDeltaMinutes,
-    [...path, 'arrivalDeltaMinutes'],
-    NUMERIC_MAXIMA.comparisonArrivalMinutes,
-    context,
-  )
+  if (comparison.arrivalDeltaMinutes !== null) {
+    addAbsoluteMaximum(
+      comparison.arrivalDeltaMinutes,
+      [...path, 'arrivalDeltaMinutes'],
+      NUMERIC_MAXIMA.comparisonArrivalMinutes,
+      context,
+    )
+  }
   addAbsoluteMaximum(
     comparison.totalUsdDelta,
     [...path, 'totalUsdDelta'],

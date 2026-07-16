@@ -10,7 +10,7 @@ const priceDisplaySchema: z.ZodType<PriceDisplay> = z.object({
 const optionComparisonSchema: z.ZodType<OptionComparison> = z.object({
   stopsDelta: z.number().int(),
   durationDeltaMinutes: z.number().int(),
-  arrivalDeltaMinutes: z.number().int(),
+  arrivalDeltaMinutes: z.number().int().nullable(),
   totalUsdDelta: z.number().int(),
 })
 

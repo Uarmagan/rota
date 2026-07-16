@@ -46,11 +46,13 @@ export interface PriceDisplay {
 // Every delta is `this minus reference`: positive stopsDelta = more stops,
 // negative durationDeltaMinutes = faster, negative arrivalDeltaMinutes = lands
 // earlier (final-arrival wall-clock at the shared destination), negative
-// totalUsdDelta = lower party price.
+// totalUsdDelta = lower party price. arrivalDeltaMinutes is null when the two
+// options depart on different local days: under a flexible date window the gap
+// is an artifact of which days were sampled, not a fact about the flights.
 export interface OptionComparison {
   stopsDelta: number
   durationDeltaMinutes: number
-  arrivalDeltaMinutes: number
+  arrivalDeltaMinutes: number | null
   totalUsdDelta: number
 }
 

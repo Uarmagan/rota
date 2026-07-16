@@ -95,6 +95,8 @@ function addComparison(
   if (comparison === null) return
   allowed.add(Math.abs(comparison.stopsDelta))
   addDuration(allowed, Math.abs(comparison.durationDeltaMinutes))
-  addDuration(allowed, Math.abs(comparison.arrivalDeltaMinutes))
+  if (comparison.arrivalDeltaMinutes !== null) {
+    addDuration(allowed, Math.abs(comparison.arrivalDeltaMinutes))
+  }
   allowed.add(Math.abs(comparison.totalUsdDelta))
 }
