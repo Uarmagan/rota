@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-15T00:00:00Z",
+  "generatedAt": "2026-07-16T00:00:00Z",
   "title": "Design System: Rota",
   "extensions": {
     "colorMeta": {
@@ -29,7 +29,9 @@
       { "name": "duration-press", "value": "160ms", "purpose": "Pressable scale-down." }
     ],
     "breakpoints": [
-      { "name": "mobile-editor", "value": "768px", "purpose": "Below this, chip editors render as drawers instead of popovers." }
+      { "name": "mobile-editor", "value": "768px", "purpose": "Below this, chip editors render as drawers instead of popovers, and text inputs run at 16px (the No-Zoom Rule)." },
+      { "name": "row-compress", "value": "640px", "purpose": "Below this, result-row column gap tightens from 20px to 12px and the page gutter drops from 24px to 16px." },
+      { "name": "pointer-coarse", "value": "(pointer: coarse)", "purpose": "Touch devices: chip padding grows to 10×6px and chip-row gap widens to 8px." }
     ]
   },
   "components": [
@@ -39,7 +41,7 @@
       "refersTo": "chip",
       "description": "A parsed intent fact: whisper label plus value, tappable to edit.",
       "html": "<button class=\"ds-chip\"><span class=\"ds-chip-label\">To</span><span class=\"ds-chip-value\">Tokyo NRT</span></button>",
-      "css": ".ds-chip { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.06); border-radius: 8px; padding: 4px 8px; font-size: 12px; cursor: pointer; transition: transform 160ms cubic-bezier(0.23,1,0.32,1), border-color 150ms ease; } .ds-chip:hover { border-color: rgba(255,255,255,0.25); } .ds-chip:focus-visible { outline: none; border-color: rgba(255,255,255,0.5); box-shadow: 0 0 0 2px rgba(255,255,255,0.2); } .ds-chip:active { transform: scale(0.97); } .ds-chip-label { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: #94949e; } .ds-chip-value { font-weight: 500; color: #f5f5f5; }"
+      "css": ".ds-chip { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.06); border-radius: 8px; padding: 4px 8px; font-size: 12px; cursor: pointer; transition: transform 160ms cubic-bezier(0.23,1,0.32,1), border-color 150ms ease; } .ds-chip:hover { border-color: rgba(255,255,255,0.25); } .ds-chip:focus-visible { outline: none; border-color: rgba(255,255,255,0.5); box-shadow: 0 0 0 2px rgba(255,255,255,0.2); } .ds-chip:active { transform: scale(0.97); } @media (pointer: coarse) { .ds-chip { padding: 6px 10px; } } .ds-chip-label { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: #94949e; } .ds-chip-value { font-weight: 500; color: #f5f5f5; }"
     },
     {
       "name": "Assumed Chip",
@@ -71,7 +73,7 @@
       "refersTo": "chip",
       "description": "The one way in: chromeless input inside a hairline shell that brightens on focus.",
       "html": "<div class=\"ds-search\"><input class=\"ds-search-input\" placeholder=\"business class to tokyo in february for 2\" /></div>",
-      "css": ".ds-search { border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.04); border-radius: 14px; padding: 0 16px; transition: border-color 150ms ease; } .ds-search:focus-within { border-color: rgba(255,255,255,0.25); } .ds-search-input { width: 100%; background: transparent; border: none; outline: none; padding: 14px 0; font-size: 15px; color: #f5f5f5; } .ds-search-input::placeholder { color: #94949e; }"
+      "css": ".ds-search { border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.04); border-radius: 14px; padding: 0 16px; transition: border-color 150ms ease; } .ds-search:focus-within { border-color: rgba(255,255,255,0.25); } .ds-search-input { width: 100%; background: transparent; border: none; outline: none; padding: 14px 0; font-size: 15px; color: #f5f5f5; } .ds-search-input::placeholder { color: #94949e; } @media (max-width: 767px) { .ds-search-input { font-size: 16px; } }"
     },
     {
       "name": "Best Badge",
@@ -97,12 +99,14 @@
       "Near-black tonal layering; hairline borders carry all structure",
       "One accent (Radar Cyan) reserved for system signals, never decoration",
       "Small, quiet type; tabular numerals and mono codes for data",
-      "Motion as a named state vocabulary, every animation with a reduced-motion fallback"
+      "Motion as a named state vocabulary, every animation with a reduced-motion fallback",
+      "Touch-honest on small screens: 16px input text on mobile, coarse-pointer target enlargement, safe-area-aware fixed chrome"
     ],
     "rules": [
       { "name": "The One Lamp Rule", "body": "Radar Cyan appears only when the system has something to report: the best-match badge, the settle bloom, the parse sweep, a pressed toggle, a streaming counter. It never appears at rest and never as decoration. If cyan covers more than a few percent of the screen, something is wrong.", "section": "colors" },
       { "name": "The Hairline Rule", "body": "Structure is drawn with white-alpha hairlines at 6–12% and tonal fills at 2–7%. Never solid gray borders, never colored side-stripes.", "section": "colors" },
       { "name": "The Whisper Label Rule", "body": "Labels are 10px, uppercase, letter-spaced, and muted. They identify; the value they sit next to carries the weight.", "section": "typography" },
+      { "name": "The No-Zoom Rule", "body": "Every text input is 16px (text-base) below md:, stepping down to the working 14–15px from md: up. iOS zooms the viewport on focus of anything smaller; the input never triggers it.", "section": "typography" },
       { "name": "The Lit-From-Above Rule", "body": "Resting surfaces are flat. The inset top highlight marks exactly one element per screen — the current winner. Shadows appear only under layers that actually float.", "section": "elevation" }
     ],
     "dos": [
@@ -110,7 +114,8 @@
       "Do keep Ink Muted (#94949e) as the floor for body-size text — it is tuned for ≥4.5:1 on the ground and the best slab.",
       "Do use tabular-nums on every price, time, and count that can re-rank or stream.",
       "Do give every animation a prefers-reduced-motion alternative (fade or pulse), matching the existing search.css pattern.",
-      "Do make state changes visible: chips pop when set, flash when changed; rows land; the badge pops when it moves."
+      "Do make state changes visible: chips pop when set, flash when changed; rows land; the badge pops when it moves.",
+      "Do keep fixed bottom chrome clear of device UI: pad with env(safe-area-inset-bottom), and keep every text input at 16px on mobile (the No-Zoom Rule)."
     ],
     "donts": [
       "Don't build chatbot UI: no chat bubbles, no scrolling transcript, no \"assistant is typing\" theater.",

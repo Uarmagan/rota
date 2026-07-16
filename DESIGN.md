@@ -83,6 +83,7 @@ The system is refined and restrained. It explicitly rejects chatbot theater (no 
 - One accent (Radar Cyan) reserved for system signals, never decoration
 - Small, quiet type; tabular numerals and mono codes for data
 - Motion as a named state vocabulary, every animation with a reduced-motion fallback
+- Touch-honest on small screens: 16px input text on mobile, coarse-pointer target enlargement, safe-area-aware fixed chrome
 
 ## 2. Colors
 
@@ -126,6 +127,8 @@ A restrained monochrome ramp over a near-black ground, with a single cold instru
 ### Named Rules
 **The Whisper Label Rule.** Labels are 10px, uppercase, letter-spaced, and muted. They identify; the value they sit next to carries the weight. (This is a functional labeling system inside components, not a section-eyebrow pattern.)
 
+**The No-Zoom Rule.** Every text input is 16px (`text-base`) below `md:`, stepping down to the working 14–15px from `md:` up. iOS zooms the viewport on focus of anything smaller; the input never triggers it.
+
 ## 4. Elevation
 
 Flat, lit from above. Surfaces are flat tonal layers of the same white-alpha family; depth is conveyed by lightness steps, not shadows. The one lift in the system is the best-result slab: an inset top highlight (`inset 0 1px 0` white at 9%) that reads as light falling from above, reserved exclusively for the winner. True shadows exist only under floating layers (popovers, drawers), where they separate the layer from the page.
@@ -148,6 +151,7 @@ Refined and restrained: hairline borders, small type, controls that whisper unti
 - **Assumed:** dashed `border-white/[0.18]` on `bg-white/[0.03]`, with a small "assumed" suffix — visibly provisional.
 - **Prompt (unfilled):** dashed border, empty value ("Where to?", "When?"); the emphasized first blocker gets `border-white/40`. Emphasis is static, never looping motion.
 - **Interaction:** `rota-press` scale-down on tap; hover brightens the border; `focus-visible` ring at white/20.
+- **Touch:** on coarse pointers, padding grows to 10×6px and the row gap widens to 8px (`pointer-coarse:` variants) — bigger targets without changing the desktop density.
 
 ### Buttons
 - **Shape:** 8px radius, compact heights (32–40px).
@@ -155,14 +159,18 @@ Refined and restrained: hairline borders, small type, controls that whisper unti
 - **Ghost:** transparent with muted text; hover `bg-white/[0.06]` and brightened text. The default for secondary actions (Clear).
 
 ### Inputs / Fields
-- **Search input:** borderless inside its `rounded-xl` hairline container (`bg-white/[0.04]`); the container's border brightens on `focus-within` — the input itself stays chromeless.
+- **Search input:** borderless inside its `rounded-xl` hairline container (`bg-white/[0.04]`); the container's border brightens on `focus-within` — the input itself stays chromeless. Placeholder suggestions shorten on mobile ("Tokyo in February" instead of "Tokyo in February for two") so the hint never truncates.
 - **Editor inputs:** `bg-white/[0.04]`, hairline border, `[color-scheme:dark]`; focus brightens border to white/40.
+- **Sizing:** all of the above follow the No-Zoom Rule — `text-base` on mobile, `md:` steps back to 14–15px.
 
 ### Cards / Containers
 - **Corner Style:** 10–14px (search shell and popovers `rounded-xl`, best slab 10px).
 - **Background:** tonal white-alpha steps; floating panels use solid #17171f.
 - **Border:** hairline white/10; internal dividers white/[0.06–0.07].
 - **Internal Padding:** 12px panels, denser (4–8px) inside menus.
+
+### Result Rows
+Three-column grid (times / duration+stops / price), every cell `whitespace-nowrap` so times, durations, and prices never break mid-value. Column gap tightens from 20px to 12px below `sm:` and the price column is content-sized — the row compresses on narrow screens instead of wrapping.
 
 ### Best Result (signature)
 The winner is a lifted neutral slab — `bg-white/[0.045]` with the inset lit-from-above highlight — never a colored stripe. The accent lives only in the ★ BEST badge (cyan-300 on cyan-400/15, 6px radius) and the one-shot verdict bloom. The resting row stays neutral.
@@ -178,6 +186,7 @@ Loading is shimmer bands (`rota-shimmer`, white-alpha gradient sweep), never spi
 - **Do** use `tabular-nums` on every price, time, and count that can re-rank or stream.
 - **Do** give every animation a `prefers-reduced-motion` alternative (fade or pulse), matching the existing `search.css` pattern.
 - **Do** make state changes visible: chips pop when set, flash when changed; rows land with `rota-row`; the badge pops when it moves.
+- **Do** keep fixed bottom chrome clear of device UI: pad with `env(safe-area-inset-bottom)`, and keep every text input at 16px on mobile (the No-Zoom Rule).
 
 ### Don't:
 - **Don't** build chatbot UI: no chat bubbles, no scrolling transcript, no "assistant is typing" theater.
