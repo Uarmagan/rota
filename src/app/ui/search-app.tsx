@@ -29,6 +29,7 @@ import {
 } from '../../lib/server/demo-api-errors'
 import { useIsMobile } from '@/app/ui/hooks/use-mobile'
 import { ChipsRow, type ChipAnimation, type ChipAnimationKind } from './chips'
+import { loadIntent, saveIntent } from './intent-storage'
 import { Results } from './results'
 import { searchStream } from './stream'
 
@@ -100,7 +101,20 @@ export function SearchApp() {
     [],
   )
 
+  // Browser storage sync belongs in an effect to keep server rendering deterministic.
+  useEffect(() => {
+    const stored = loadIntent()
+    if (stored === null) return
+    const restoredGap = checkGaps(stored, null)
+    setIntent(stored)
+    setGap(restoredGap)
+    if (restoredGap.kind !== 'follow_up' && stored.dates !== null) {
+      void startSearch(stored, { skipWhy: true })
+    }
+  }, [])
+
   const applyIntent = (previous: TripIntent, next: TripIntent, nextGap: GapOutcome) => {
+    saveIntent(next)
     const diff = computeIntentDiff(previous, next)
     setIntent(next)
     setGap(nextGap)
@@ -168,7 +182,10 @@ export function SearchApp() {
     applyIntent(intent, next, checkGaps(next, null))
   }
 
-  const startSearch = async (searchIntent: TripIntent) => {
+  const startSearch = async (
+    searchIntent: TripIntent,
+    options?: { skipWhy?: boolean },
+  ) => {
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -232,7 +249,7 @@ export function SearchApp() {
       // The settle beat (verdict bloom) waits for the last wave to finish.
       if (!(await waveSettled())) return
       setStreaming(false)
-      void fetchWhy(searchIntent, collected, run)
+      if (!options?.skipWhy) void fetchWhy(searchIntent, collected, run)
     } catch {
       if (controller.signal.aborted || searchRun.current !== run) return
       setStreaming(false)
