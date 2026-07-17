@@ -139,7 +139,7 @@ function validateConfig(config: RequestGateConfig): void {
   for (const [name, value] of Object.entries(config)) {
     if (name === 'clock') continue
     if (!Number.isSafeInteger(value) || (value as number) <= 0) {
-      throw new Error(`Invalid model-call gate configuration: ${name}`)
+      throw new Error(`Invalid request gate configuration: ${name}`)
     }
   }
 }

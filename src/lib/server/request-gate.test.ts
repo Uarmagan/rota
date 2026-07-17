@@ -100,7 +100,7 @@ describe('createRequestGate', () => {
   it('fails closed on invalid gate configuration', () => {
     expect(() =>
       createRequestGate(config({ globalCallsPerWindow: 0 })),
-    ).toThrow('Invalid model-call gate configuration: globalCallsPerWindow')
+    ).toThrow('Invalid request gate configuration: globalCallsPerWindow')
   })
 
   it('keeps the model-call factory and config aliases behaviorally compatible', () => {
