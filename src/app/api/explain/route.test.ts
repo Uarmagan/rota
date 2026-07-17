@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ExplanationFacts } from '../../../lib/engine/types'
 import type { ResultExplainer } from '../../../lib/prose/result-explainer'
+import type { PaidRequestLimiter } from '../../../lib/server/paid-request-limiter'
 import type { ModelCallGate } from '../../../lib/server/request-gate'
-import { handleExplain } from './route'
+import { handleExplain as handleExplainRoute } from './route'
 
 const facts: ExplanationFacts = {
   optionId: 'option-1',
@@ -16,6 +17,22 @@ const facts: ExplanationFacts = {
   nonstopRequired: false,
   vsCheapest: null,
   vsFastest: null,
+}
+
+function handleExplain(
+  request: Request,
+  explainer: ResultExplainer,
+  gate: ModelCallGate,
+  limiter: PaidRequestLimiter = allowingPaidRequestLimiter,
+  trustForwardedAddress = false,
+): Promise<Response> {
+  return handleExplainRoute(
+    request,
+    explainer,
+    gate,
+    limiter,
+    trustForwardedAddress,
+  )
 }
 
 describe('handleExplain', () => {
@@ -193,6 +210,119 @@ describe('handleExplain', () => {
     expect(explain).not.toHaveBeenCalled()
   })
 
+  it('returns a shared 429 and releases the local permit before explaining', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const release = vi.fn()
+    const gate: ModelCallGate = {
+      acquire: () => ({ ok: true, permit: { release } }),
+    }
+    const check = vi.fn<PaidRequestLimiter['check']>().mockResolvedValue({
+      status: 'rate_limited',
+    })
+
+    const response = await handleExplain(
+      explainRequest({ facts }),
+      { explain },
+      gate,
+      { check },
+    )
+
+    expect(response.status).toBe(429)
+    expect(response.headers.has('retry-after')).toBe(false)
+    expect(await response.json()).toEqual({ error: 'rate_limited' })
+    expect(check).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledOnce()
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('returns a detail-free 503 and releases the permit when the shared limiter is unavailable', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const release = vi.fn()
+    const check = vi.fn<PaidRequestLimiter['check']>().mockResolvedValue({
+      status: 'unavailable',
+    })
+
+    const response = await handleExplain(
+      explainRequest({ facts }),
+      { explain },
+      { acquire: () => ({ ok: true, permit: { release } }) },
+      { check },
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'service_unavailable' })
+    expect(check).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledOnce()
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'browser boundary rejection',
+      request: () =>
+        new Request('http://localhost/api/explain', {
+          method: 'POST',
+          headers: { 'content-type': 'text/plain' },
+          body: '{}',
+        }),
+      locallyRejected: false,
+    },
+    {
+      name: 'malformed body rejection',
+      request: () =>
+        new Request('http://localhost/api/explain', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{',
+        }),
+      locallyRejected: false,
+    },
+    {
+      name: 'schema rejection',
+      request: () => explainRequest({ facts: {} }),
+      locallyRejected: false,
+    },
+    {
+      name: 'local gate rejection',
+      request: () => explainRequest({ facts }),
+      locallyRejected: true,
+    },
+  ])('skips the shared allowance on $name', async ({ request, locallyRejected }) => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const check = vi.fn<PaidRequestLimiter['check']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>(() =>
+      locallyRejected
+        ? { ok: false, retryAfterMs: 1_000 }
+        : { ok: true, permit: { release() {} } },
+    )
+
+    await handleExplain(request(), { explain }, { acquire }, { check })
+
+    expect(check).not.toHaveBeenCalled()
+    expect(explain).not.toHaveBeenCalled()
+    expect(acquire).toHaveBeenCalledTimes(locallyRejected ? 1 : 0)
+  })
+
+  it('checks the shared allowance once and releases once on success', async () => {
+    const explain = vi.fn(async () => ({ text: 'Best match.', source: 'model' as const }))
+    const check = vi.fn<PaidRequestLimiter['check']>().mockResolvedValue({
+      status: 'allowed',
+    })
+    const release = vi.fn()
+
+    const response = await handleExplain(
+      explainRequest({ facts }),
+      { explain },
+      { acquire: () => ({ ok: true, permit: { release } }) },
+      { check },
+    )
+
+    expect(response.status).toBe(200)
+    expect(check).toHaveBeenCalledOnce()
+    expect(explain).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   it('releases the model-call permit when the explainer throws', async () => {
     const release = vi.fn()
     const gate: ModelCallGate = {
@@ -300,4 +430,8 @@ const rejectingGate: ModelCallGate = {
 
 const allowingGate: ModelCallGate = {
   acquire: () => ({ ok: true, permit: { release() {} } }),
+}
+
+const allowingPaidRequestLimiter: PaidRequestLimiter = {
+  check: async () => ({ status: 'allowed' }),
 }
