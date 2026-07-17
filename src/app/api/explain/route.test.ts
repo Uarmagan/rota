@@ -19,6 +19,81 @@ const facts: ExplanationFacts = {
 }
 
 describe('handleExplain', () => {
+  it('rejects non-JSON media before acquiring a permit or explaining', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleExplain(
+      new Request('http://localhost/api/explain', {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain' },
+        body: '{}',
+      }),
+      { explain },
+      { acquire },
+    )
+
+    expect(response.status).toBe(415)
+    expect(await response.json()).toEqual({
+      error: 'unsupported_media_type',
+    })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('rejects cross-site JSON before acquiring a permit or explaining', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleExplain(
+      explainRequest(
+        { facts },
+        { origin: 'https://attacker.example' },
+      ),
+      { explain },
+      { acquire },
+    )
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'cross_site_request' })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('rejects without reading a throwing request stream', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleExplain(
+      throwingStreamRequest('http://localhost/api/explain'),
+      { explain },
+      { acquire },
+    )
+
+    expect(response.status).toBe(415)
+    expect(await response.json()).toEqual({
+      error: 'unsupported_media_type',
+    })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('accepts same-origin JSON browser requests', async () => {
+    const explainer: ResultExplainer = {
+      explain: async () => ({ text: 'Best match.', source: 'model' }),
+    }
+    const response = await handleExplain(
+      explainRequest(
+        { facts },
+        {
+          origin: 'http://localhost',
+          'sec-fetch-site': 'same-origin',
+        },
+      ),
+      explainer,
+      allowingGate,
+    )
+
+    expect(response.status).toBe(200)
+  })
+
   it('returns guarded explainer copy', async () => {
     const explainer: ResultExplainer = {
       explain: async () => ({ text: 'Best match.', source: 'model' }),
@@ -92,6 +167,7 @@ describe('handleExplain', () => {
     const response = await handleExplain(
       new Request('http://localhost/api/explain', {
         method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ value: 'x'.repeat(32 * 1024) }),
       }),
       { explain },
@@ -193,12 +269,29 @@ describe('handleExplain', () => {
   })
 })
 
-function explainRequest(body: unknown): Request {
+function explainRequest(
+  body: unknown,
+  headers: Record<string, string> = {},
+): Request {
   return new Request('http://localhost/api/explain', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
   })
+}
+
+function throwingStreamRequest(url: string): Request {
+  const body = new ReadableStream<Uint8Array>({
+    pull() {
+      throw new Error('request body must not be read')
+    },
+  })
+  return new Request(url, {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain' },
+    body,
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' })
 }
 
 const rejectingGate: ModelCallGate = {

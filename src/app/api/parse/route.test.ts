@@ -16,6 +16,84 @@ const parsedIntent: ParseResult['intent'] = {
 }
 
 describe('handleParse', () => {
+  it('rejects non-JSON media before acquiring a permit or parsing', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleParse(
+      new Request('http://localhost/api/parse', {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain' },
+        body: '{}',
+      }),
+      { parse },
+      { acquire },
+    )
+
+    expect(response.status).toBe(415)
+    expect(await response.json()).toEqual({
+      error: 'unsupported_media_type',
+    })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(parse).not.toHaveBeenCalled()
+  })
+
+  it('rejects cross-site JSON before acquiring a permit or parsing', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleParse(
+      parseRequest(
+        {
+          currentIntent: createEmptyTripIntent(),
+          utterance: 'to tokyo',
+        },
+        { origin: 'https://attacker.example' },
+      ),
+      { parse },
+      { acquire },
+    )
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'cross_site_request' })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(parse).not.toHaveBeenCalled()
+  })
+
+  it('rejects without reading a throwing request stream', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleParse(
+      throwingStreamRequest('http://localhost/api/parse'),
+      { parse },
+      { acquire },
+    )
+
+    expect(response.status).toBe(415)
+    expect(await response.json()).toEqual({
+      error: 'unsupported_media_type',
+    })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(parse).not.toHaveBeenCalled()
+  })
+
+  it('accepts same-origin JSON browser requests', async () => {
+    const response = await handleParse(
+      parseRequest(
+        {
+          currentIntent: createEmptyTripIntent(),
+          utterance: 'to tokyo',
+        },
+        {
+          origin: 'http://localhost',
+          'sec-fetch-site': 'same-origin',
+        },
+      ),
+      stubParser({ intent: parsedIntent, unhandled: null }),
+      allowingGate,
+    )
+
+    expect(response.status).toBe(200)
+  })
+
   it('normalizes a successful lazy utterance', async () => {
     const response = await handleParse(
       parseRequest({
@@ -162,6 +240,7 @@ describe('handleParse', () => {
     const response = await handleParse(
       new Request('http://localhost/api/parse', {
         method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: '{',
       }),
       stubParser({ intent: parsedIntent, unhandled: null }),
@@ -177,6 +256,7 @@ describe('handleParse', () => {
     const response = await handleParse(
       new Request('http://localhost/api/parse', {
         method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ value: 'x'.repeat(32 * 1024) }),
       }),
       { parse },
@@ -291,12 +371,29 @@ function validRequest(): Request {
   })
 }
 
-function parseRequest(body: unknown): Request {
+function parseRequest(
+  body: unknown,
+  headers: Record<string, string> = {},
+): Request {
   return new Request('http://localhost/api/parse', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
   })
+}
+
+function throwingStreamRequest(url: string): Request {
+  const body = new ReadableStream<Uint8Array>({
+    pull() {
+      throw new Error('request body must not be read')
+    },
+  })
+  return new Request(url, {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain' },
+    body,
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' })
 }
 
 function stubParser(result: ParseResult): IntentParser {
