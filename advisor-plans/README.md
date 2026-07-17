@@ -58,6 +58,7 @@ Full SHA-256 baseline hashes used by drift checks:
 | 006 | Add mobile Date and Time chip-editor coverage | P1 | S | — | TODO |
 | 007 | Reject cross-site browser requests before paid API work | P1 | S | 005 | DONE |
 | 008 | Enforce the shared 20-request visitor allowance | P1 | M | 005, 007 | IN PROGRESS — repository complete; live Vercel controls remain operator-gated |
+| 009 | Bound parser output and retry feedback | P1 | M | 005 | DONE |
 | 012 | Pin GitHub Actions to immutable commits | P3 | S | — | DONE |
 
 Status values: TODO, IN PROGRESS, DONE, BLOCKED (with reason), REJECTED (with rationale).
