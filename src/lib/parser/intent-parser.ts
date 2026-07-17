@@ -8,7 +8,11 @@ export interface ParserContext {
 }
 
 export interface IntentParser {
-  parse(currentIntent: TripIntent, utterance: string): Promise<ParseResult>
+  parse(
+    currentIntent: TripIntent,
+    utterance: string,
+    signal?: AbortSignal,
+  ): Promise<ParseResult>
 }
 
 export class ParserError extends Error {

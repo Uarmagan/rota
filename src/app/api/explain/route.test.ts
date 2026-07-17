@@ -129,6 +129,21 @@ describe('handleExplain', () => {
     })
   })
 
+  it('passes the exact request signal and releases the permit on success', async () => {
+    const explain = vi.fn(async () => ({ text: 'Best match.', source: 'model' as const }))
+    const release = vi.fn()
+    const gate: ModelCallGate = {
+      acquire: () => ({ ok: true, permit: { release } }),
+    }
+    const request = explainRequest({ facts })
+
+    const response = await handleExplain(request, { explain }, gate)
+
+    expect(response.status).toBe(200)
+    expect(explain).toHaveBeenCalledWith(facts, request.signal)
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   it('preserves fallback explainer success', async () => {
     const explainer: ResultExplainer = {
       explain: async () => ({ text: 'Best match.', source: 'fallback' }),
@@ -359,6 +374,27 @@ describe('handleExplain', () => {
     expect(release).toHaveBeenCalledOnce()
   })
 
+  it('releases the model-call permit once when the request aborts', async () => {
+    const controller = new AbortController()
+    const request = explainRequest({ facts }, {}, controller.signal)
+    const release = vi.fn()
+    const gate: ModelCallGate = {
+      acquire: () => ({ ok: true, permit: { release } }),
+    }
+    const explain = vi.fn<ResultExplainer['explain']>(async (_facts, signal) => {
+      await rejectWhenAborted(signal)
+      throw new Error('request aborted')
+    })
+
+    const response = handleExplain(request, { explain }, gate)
+    await vi.waitFor(() => expect(explain).toHaveBeenCalledOnce())
+    controller.abort()
+
+    await expect(response).rejects.toThrow('request aborted')
+    expect(explain).toHaveBeenCalledWith(facts, request.signal)
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   it('rejects a fractional party price before explaining', async () => {
     const explain = vi.fn<ResultExplainer['explain']>()
     const response = await handleExplain(
@@ -421,11 +457,25 @@ describe('handleExplain', () => {
 function explainRequest(
   body: unknown,
   headers: Record<string, string> = {},
+  signal?: AbortSignal,
 ): Request {
   return new Request('http://localhost/api/explain', {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
+    signal,
+  })
+}
+
+function rejectWhenAborted(signal: AbortSignal | undefined): Promise<never> {
+  if (!signal) throw new Error('missing request signal')
+  if (signal.aborted) return Promise.reject(new Error('request aborted'))
+  return new Promise((_, reject) => {
+    signal.addEventListener(
+      'abort',
+      () => reject(new Error('request aborted')),
+      { once: true },
+    )
   })
 }
 

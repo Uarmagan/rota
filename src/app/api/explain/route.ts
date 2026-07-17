@@ -41,7 +41,7 @@ export async function handleExplain(
     const sharedError = paidRequestLimitError(await limiter.check(request))
     if (sharedError) return sharedError
 
-    const result = await explainer.explain(parsedBody.data.facts)
+    const result = await explainer.explain(parsedBody.data.facts, request.signal)
     if (result.source === 'budget_exhausted') {
       return Response.json(
         { error: DEMO_API_ERROR_CODES.budgetExhausted },

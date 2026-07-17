@@ -184,15 +184,33 @@ Two call sites, both behind interfaces so model/provider is swappable config:
 
 ```ts
 interface IntentParser {
-  parse(currentIntent: TripIntent, utterance: string): Promise<ParseResult>
+  parse(
+    currentIntent: TripIntent,
+    utterance: string,
+    signal?: AbortSignal,
+  ): Promise<ParseResult>
 }
 
 interface ResultExplainer {
-  explain(facts: ExplanationFacts): Promise<
+  explain(facts: ExplanationFacts, signal?: AbortSignal): Promise<
     Explanation | { source: 'budget_exhausted' }
   >
 }
 ```
+
+Both paid routes pass their exact request-scoped `AbortSignal` into these optional
+interface parameters and release every acquired model-call permit in `finally`. Each
+adapter composes that caller signal with one total operation deadline: a 15-second
+parser deadline across both validation attempts and every SDK transport retry, and an
+8-second explainer deadline. Recognized provider quota is classified before
+an abort race. Other parser cancellation or timeout is the existing stable `transport`
+failure, while explainer cancellation or timeout uses the deterministic fallback
+immediately and never feedback-retries.
+
+One search-run controller owns both its availability stream and its why request. A
+newer search, an unsearchable intent transition, or unmount aborts both operations;
+the why request also checks its signal and run identity after every awaited response
+operation so a deferred mock or late network response cannot update stale state.
 
 The OpenAI `IntentParser` is constructed with a request-scoped
 `ParserContext { today, supportedPlaces, airportAliases }`; the prompt also reads the
