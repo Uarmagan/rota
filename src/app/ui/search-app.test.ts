@@ -190,9 +190,7 @@ describe('SearchApp', () => {
 
   it('distinguishes the visitor allowance from a parser outage', async () => {
     const router = new FetchRouter()
-    router.parse.push(
-      Response.json({ error: 'rate_limited' }, { status: 429 }),
-    )
+    router.parse.push(new Response(null, { status: 429 }))
     router.install()
 
     await submitUtterance('tokyo in feb for 2')
@@ -226,7 +224,10 @@ describe('SearchApp', () => {
   it.each([
     [
       'visitor allowance',
-      Response.json({ error: 'rate_limited' }, { status: 429 }),
+      new Response('platform-owned response', {
+        status: 429,
+        headers: { 'content-type': 'text/plain' },
+      }),
       'Demo limit reached. Try again in a few minutes.',
     ],
     [
