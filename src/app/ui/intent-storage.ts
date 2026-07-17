@@ -15,6 +15,14 @@ export function saveIntent(intent: TripIntent): void {
   }
 }
 
+export function clearIntent(): void {
+  try {
+    sessionStorage.removeItem(KEY)
+  } catch {
+    // Persistence is best-effort.
+  }
+}
+
 export function loadIntent(): TripIntent | null {
   try {
     const stored = sessionStorage.getItem(KEY)

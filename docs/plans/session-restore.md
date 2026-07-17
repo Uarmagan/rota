@@ -6,6 +6,10 @@ issue, 2026-07-15 grilling session; concept already captured as **Session restor
 `CONTEXT.md`). Read PRD.md, ARCHITECTURE.md, CONTEXT.md, and CLAUDE.md first; their
 invariants bind everything here.
 
+> Follow-up, 2026-07-17: the user explicitly added a **New search** action that clears
+> the committed intent and returns to the blank landing page. This supersedes the
+> original no-clear/reset-UI constraint below; the rest of this historical plan stands.
+
 ## Hard constraints (violations fail review)
 
 - `src/lib/engine` stays pure TS. The new storage module is UI-side

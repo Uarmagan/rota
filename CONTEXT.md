@@ -65,9 +65,10 @@ not-yet-searchable intent) and a searchable intent re-runs its search. Everythin
 transient stays gone — draft text, [[Unhandled]] echoes, errors, stream progress — and
 restore never spends a paid model call: no parser, and the why-line waits for the next
 real intent change. An unrestorable stored intent is discarded silently; the failure
-mode is the ordinary blank landing page, never a visible error. Deliberately NOT
-shareable: a link that lands on pre-filled chips would skip the words-become-structure
-experience the product exists to show.
+mode is the ordinary blank landing page, never a visible error. **New search** explicitly
+discards the committed intent and returns to that landing page. Deliberately NOT shareable:
+a link that lands on pre-filled chips would skip the words-become-structure experience the
+product exists to show.
 _Avoid_: saved search, permalink, URL state, session (bare)
 
 ### Ambiguity

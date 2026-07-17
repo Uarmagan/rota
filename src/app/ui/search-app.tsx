@@ -7,7 +7,7 @@
 // streamed batches; the server only parses, streams, and phrases.
 
 import { useEffect, useRef, useState } from 'react'
-import { Search as SearchIcon } from 'lucide-react'
+import { ArrowLeft, Search as SearchIcon } from 'lucide-react'
 import './search.css'
 import { SIMULATED_SOURCES } from '../../lib/availability/sources'
 import type { SourceBatch } from '../../lib/availability/types'
@@ -29,7 +29,7 @@ import {
 } from '../../lib/server/demo-api-errors'
 import { useIsMobile } from '@/app/ui/hooks/use-mobile'
 import { ChipsRow, type ChipAnimation, type ChipAnimationKind } from './chips'
-import { loadIntent, saveIntent } from './intent-storage'
+import { clearIntent, loadIntent, saveIntent } from './intent-storage'
 import { Results } from './results'
 import { SearchStreamError, searchStream } from './stream'
 
@@ -182,6 +182,24 @@ export function SearchApp() {
     applyIntent(intent, next, checkGaps(next, null))
   }
 
+  const startNewSearch = () => {
+    invalidatePendingParse()
+    searchRun.current += 1
+    abortRef.current?.abort()
+    abortRef.current = null
+    clearIntent()
+    setIntent(null)
+    setGap(null)
+    setAnimations(new Map())
+    setRunId(0)
+    setStreaming(false)
+    setBatches([])
+    setWhy(null)
+    setError(null)
+    setText('')
+    setSendOff(null)
+  }
+
   const startSearch = async (
     searchIntent: TripIntent,
     options?: { skipWhy?: boolean },
@@ -327,6 +345,16 @@ export function SearchApp() {
           hasIntent ? 'pt-14 pb-32' : 'min-h-screen justify-center pb-40'
         }`}
       >
+        {hasIntent && (
+          <button
+            type="button"
+            onClick={startNewSearch}
+            className="rota-press mb-4 inline-flex min-h-8 items-center gap-1.5 self-start rounded-md px-2 text-xs text-muted-foreground hover:bg-white/[0.04] hover:text-neutral-200 focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none"
+          >
+            <ArrowLeft aria-hidden="true" className="size-3.5" />
+            New search
+          </button>
+        )}
         <h1
           className={
             hasIntent

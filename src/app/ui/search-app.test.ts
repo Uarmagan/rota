@@ -105,6 +105,25 @@ describe('SearchApp', () => {
     expect(router.requestsFor('/api/explain')).toHaveLength(0)
   })
 
+  it('starts a new search and clears the restored trip', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    router.search.push(
+      sseResponse([batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]),
+    )
+    router.install()
+    sessionStorage.setItem('rota:intent:v1', JSON.stringify(SEARCH_INTENT))
+
+    render(createElement(SearchApp))
+
+    expect(await screen.findByText('★ BEST')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'New search' }))
+
+    expect(screen.getByRole('heading', { name: 'Rota' })).toBeTruthy()
+    expect(screen.queryByText('NRT · Tokyo')).toBeNull()
+    expect(sessionStorage.getItem('rota:intent:v1')).toBeNull()
+  })
+
   it('shows the blank landing page when the stored intent is invalid', () => {
     const router = new FetchRouter()
     router.install()
