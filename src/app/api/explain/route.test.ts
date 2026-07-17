@@ -376,7 +376,7 @@ describe('handleExplain', () => {
 
   it('releases the model-call permit once when the request aborts', async () => {
     const controller = new AbortController()
-    const request = explainRequest({ facts }, controller.signal)
+    const request = explainRequest({ facts }, {}, controller.signal)
     const release = vi.fn()
     const gate: ModelCallGate = {
       acquire: () => ({ ok: true, permit: { release } }),
@@ -456,10 +456,9 @@ describe('handleExplain', () => {
 
 function explainRequest(
   body: unknown,
-  headersOrSignal: Record<string, string> | AbortSignal = {},
+  headers: Record<string, string> = {},
+  signal?: AbortSignal,
 ): Request {
-  const headers = headersOrSignal instanceof AbortSignal ? {} : headersOrSignal
-  const signal = headersOrSignal instanceof AbortSignal ? headersOrSignal : undefined
   return new Request('http://localhost/api/explain', {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },

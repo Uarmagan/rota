@@ -279,6 +279,7 @@ describe('handleParse', () => {
         currentIntent: createEmptyTripIntent(),
         utterance: 'to tokyo',
       },
+      {},
       controller.signal,
     )
     const release = vi.fn()
@@ -579,10 +580,9 @@ function validRequest(): Request {
 
 function parseRequest(
   body: unknown,
-  headersOrSignal: Record<string, string> | AbortSignal = {},
+  headers: Record<string, string> = {},
+  signal?: AbortSignal,
 ): Request {
-  const headers = headersOrSignal instanceof AbortSignal ? {} : headersOrSignal
-  const signal = headersOrSignal instanceof AbortSignal ? headersOrSignal : undefined
   return new Request('http://localhost/api/parse', {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
