@@ -75,10 +75,13 @@ export function createSimulatedAvailability(
   const delay = config.delay ?? realDelay
 
   return {
-    async *search(query) {
+    async *search(query, signal) {
+      if (signal.aborted) return
       let elapsed = 0
       for (const { atMs, ...batch } of planAvailability(query, config)) {
-        await delay(atMs - elapsed)
+        if (signal.aborted) return
+        await delay(atMs - elapsed, signal)
+        if (signal.aborted) return
         yield batch
         elapsed = atMs
       }
@@ -86,8 +89,24 @@ export function createSimulatedAvailability(
   }
 }
 
-function realDelay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function realDelay(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve()
+
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (): void => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', abort)
+      resolve()
+    }
+    const timer = setTimeout(finish, ms)
+    const abort = (): void => {
+      clearTimeout(timer)
+      finish()
+    }
+    signal.addEventListener('abort', abort, { once: true })
+  })
 }
 
 function drawRange(draw: number, [min, max]: readonly [number, number]): number {

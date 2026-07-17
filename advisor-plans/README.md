@@ -60,6 +60,7 @@ Full SHA-256 baseline hashes used by drift checks:
 | 008 | Enforce the shared 20-request visitor allowance | P1 | M | 005, 007 | IN PROGRESS — repository complete; live Vercel controls remain operator-gated |
 | 009 | Bound parser output and retry feedback | P1 | M | 005 | DONE |
 | 010 | Cancel and time-bound paid model work | P1 | M | 009 | DONE |
+| 011 | Meter anonymous search streams and cancel abandoned work | P2 | M | 007, 008, 010 | BLOCKED — repository complete; Plan 008 live controls and the search WAF capacity/risk decision remain operator-gated |
 | 012 | Pin GitHub Actions to immutable commits | P3 | S | — | DONE |
 
 Status values: TODO, IN PROGRESS, DONE, BLOCKED (with reason), REJECTED (with rationale).

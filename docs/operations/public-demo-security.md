@@ -138,8 +138,37 @@ approved release process. Re-enabling reverses the sequence: verify or create th
 verify scope and system variables, set the attestation, redeploy, perform one approved
 ordinary smoke request, and update `verified_at`.
 
-## Plan 011 reservation
+## Search-stream control and blocked edge decision
 
-Plan 011 owns search-stream throttling and must use separate counters. Record remaining
-rule capacity here during the live inventory before choosing that control. The paid
-instrument must remain exclusive to `/api/parse` and `/api/explain`.
+Repository search admission is implemented as a distinct per-process defense: 8
+concurrent streams, 600 global starts per 600-second fixed window, 60 client starts per
+600-second window, and 1,000 retained client keys. Its environment names are
+`ROTA_SEARCH_MAX_CONCURRENCY`,
+`ROTA_SEARCH_GLOBAL_REQUESTS_PER_10_MINUTES`,
+`ROTA_SEARCH_CLIENT_REQUESTS_PER_10_MINUTES`, and
+`ROTA_SEARCH_MAX_CLIENT_KEYS`. It shares the one verified
+`ROTA_TRUST_FORWARDED_ADDRESS` topology decision but no counters or permits with the
+model gate. In particular, search 60/10 is not the paid Visitor allowance of 20/10 and
+search never calls `rota-paid-api-visitor`.
+
+Aborting a request or cancelling its response body reaches the simulated provider
+timer, clears the pending wait, and releases the stream permit exactly once. The
+application gate remains per process. It cannot impose one exact total across multiple
+instances, regions, or deployments. Vercel WAF counters are deployment/platform
+scoped and may be regional; verify current platform behavior and pricing rather than
+claiming a globally exact count.
+
+Plan 011 Step 7 is **BLOCKED** because no separate authorization exists to inspect live
+capacity or create a search WAF rule, and the residual multi-instance risk has not been
+explicitly accepted. The only allowed completion paths are:
+
+1. Separately approve read-only capacity and pricing inventory, then separately approve
+   creating the search-only `GET /api/search` rule in Log mode at 60 requests per 600
+   seconds per IP. Observe and record representative evidence, then obtain a second
+   separate approval before enforcement.
+2. Explicitly accept the documented residual multi-instance risk and record `search
+   WAF: not configured` with that operator decision.
+
+Until one path is completed, do not mark Plan 011 DONE. Do not inspect or mutate live
+firewall state, reuse or alter the paid rule, combine counters, or infer authorization
+from this repository change.

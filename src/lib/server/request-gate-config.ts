@@ -1,4 +1,4 @@
-import type { ModelCallGateConfig } from './request-gate'
+import type { ModelCallGateConfig, RequestGateConfig } from './request-gate'
 
 export interface ModelCallGateSettings {
   config: ModelCallGateConfig
@@ -6,6 +6,7 @@ export interface ModelCallGateSettings {
 }
 
 const ONE_MINUTE_MS = 60_000
+const TEN_MINUTES_MS = 600_000
 
 export function modelCallGateSettingsFromEnvironment(
   environment: Record<string, string | undefined>,
@@ -38,6 +39,34 @@ export function modelCallGateSettingsFromEnvironment(
       environment,
       'ROTA_TRUST_FORWARDED_ADDRESS',
       false,
+    ),
+  }
+}
+
+export function searchRequestGateConfigFromEnvironment(
+  environment: Record<string, string | undefined>,
+): RequestGateConfig {
+  return {
+    maxConcurrency: positiveIntegerEnvironment(
+      environment,
+      'ROTA_SEARCH_MAX_CONCURRENCY',
+      8,
+    ),
+    globalCallsPerWindow: positiveIntegerEnvironment(
+      environment,
+      'ROTA_SEARCH_GLOBAL_REQUESTS_PER_10_MINUTES',
+      600,
+    ),
+    clientCallsPerWindow: positiveIntegerEnvironment(
+      environment,
+      'ROTA_SEARCH_CLIENT_REQUESTS_PER_10_MINUTES',
+      60,
+    ),
+    windowMs: TEN_MINUTES_MS,
+    maxClientKeys: positiveIntegerEnvironment(
+      environment,
+      'ROTA_SEARCH_MAX_CLIENT_KEYS',
+      1_000,
     ),
   }
 }

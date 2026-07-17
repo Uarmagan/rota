@@ -521,6 +521,43 @@ describe('SearchApp', () => {
     expect(await screen.findByText('The search stream dropped. Try again.')).toBeTruthy()
   })
 
+  it('maps an empty-body search 429 to the existing demo-limit message', async () => {
+    const router = new FetchRouter()
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(new Response(null, { status: 429 }))
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+
+    expect(
+      await screen.findByText('Demo limit reached. Try again in a few minutes.'),
+    ).toBeTruthy()
+    expect(screen.queryByText('The search stream dropped. Try again.')).toBeNull()
+  })
+
+  it('ignores a typed search failure from an aborted stale run', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    const staleSearch = deferred<Response>()
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(staleSearch.promise, sseResponse([doneFrame()]))
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+    await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(1))
+    await user.click(screen.getByRole('button', { name: /cabin.*economy/i }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'business' }))
+    await waitFor(() => expect(router.requestsFor('/api/search')).toHaveLength(2))
+
+    staleSearch.resolve(new Response(null, { status: 429 }))
+    await act(async () => Promise.resolve())
+
+    expect(
+      screen.queryByText('Demo limit reached. Try again in a few minutes.'),
+    ).toBeNull()
+    expect(screen.queryByText('The search stream dropped. Try again.')).toBeNull()
+  })
+
   it('requests one explanation and renders it only on the matching best option', async () => {
     const user = userEvent.setup()
     const router = new FetchRouter()

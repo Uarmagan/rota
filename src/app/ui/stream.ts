@@ -1,6 +1,13 @@
 import type { SourceBatch } from '../../lib/availability/types'
 import type { TripIntent } from '../../lib/schema/trip-intent'
 
+export class SearchStreamError extends Error {
+  constructor(readonly status: number) {
+    super(`Search failed (${status})`)
+    this.name = 'SearchStreamError'
+  }
+}
+
 // Client side of GET /api/search: fetch-reader SSE parsing (EventSource can't
 // be aborted per-search as cleanly, and we already re-open per refinement).
 export async function* searchStream(
@@ -12,7 +19,7 @@ export async function* searchStream(
     { signal, headers: { accept: 'text/event-stream' } },
   )
   if (!response.ok || response.body === null) {
-    throw new Error(`Search failed (${response.status})`)
+    throw new SearchStreamError(response.status)
   }
 
   const reader = response.body.getReader()

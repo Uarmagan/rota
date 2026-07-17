@@ -120,7 +120,10 @@ describe('availability to explanation integration', () => {
 async function search(intentToSearch: TripIntent): Promise<SourceBatch[]> {
   const provider = createSimulatedAvailability({ delay: instantDelay })
   const batches: SourceBatch[] = []
-  for await (const batch of provider.search(toAvailabilityQuery(intentToSearch))) {
+  for await (const batch of provider.search(
+    toAvailabilityQuery(intentToSearch),
+    new AbortController().signal,
+  )) {
     batches.push(batch)
   }
   return batches

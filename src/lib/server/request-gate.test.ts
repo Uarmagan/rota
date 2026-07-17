@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createRequestGate,
   createModelCallGate,
   type ModelCallGateConfig,
+  type RequestGateConfig,
 } from './request-gate'
 
-describe('createModelCallGate', () => {
+describe('createRequestGate', () => {
   it('caps concurrent model calls and permits work after release', () => {
-    const gate = createModelCallGate(config({ maxConcurrency: 1 }))
+    const gate = createRequestGate(config({ maxConcurrency: 1 }))
 
     const first = gate.acquire('client-a')
     const blocked = gate.acquire('client-b')
@@ -18,7 +20,7 @@ describe('createModelCallGate', () => {
   })
 
   it('limits calls from one client', () => {
-    const gate = createModelCallGate(config({ clientCallsPerWindow: 1 }))
+    const gate = createRequestGate(config({ clientCallsPerWindow: 1 }))
     const first = gate.acquire('client-a')
     if (first.ok) first.permit.release()
 
@@ -29,7 +31,7 @@ describe('createModelCallGate', () => {
   })
 
   it('limits calls globally across clients', () => {
-    const gate = createModelCallGate(config({ globalCallsPerWindow: 2 }))
+    const gate = createRequestGate(config({ globalCallsPerWindow: 2 }))
     for (const client of ['client-a', 'client-b']) {
       const decision = gate.acquire(client)
       if (decision.ok) decision.permit.release()
@@ -43,7 +45,7 @@ describe('createModelCallGate', () => {
 
   it('resets fixed windows and reports the remaining retry duration', () => {
     let now = 0
-    const gate = createModelCallGate(
+    const gate = createRequestGate(
       config({ clientCallsPerWindow: 1, clock: () => now }),
     )
     const first = gate.acquire('client-a')
@@ -60,7 +62,7 @@ describe('createModelCallGate', () => {
 
   it('evicts the least-recent client when the retained-key cap is reached', () => {
     let now = 0
-    const gate = createModelCallGate(
+    const gate = createRequestGate(
       config({
         clientCallsPerWindow: 1,
         maxClientKeys: 2,
@@ -79,7 +81,7 @@ describe('createModelCallGate', () => {
   })
 
   it('supports release in finally when model work throws', async () => {
-    const gate = createModelCallGate(config({ maxConcurrency: 1 }))
+    const gate = createRequestGate(config({ maxConcurrency: 1 }))
     const decision = gate.acquire('client-a')
     if (!decision.ok) throw new Error('Expected a permit')
 
@@ -97,14 +99,41 @@ describe('createModelCallGate', () => {
 
   it('fails closed on invalid gate configuration', () => {
     expect(() =>
-      createModelCallGate(config({ globalCallsPerWindow: 0 })),
-    ).toThrow('Invalid model-call gate configuration: globalCallsPerWindow')
+      createRequestGate(config({ globalCallsPerWindow: 0 })),
+    ).toThrow('Invalid request gate configuration: globalCallsPerWindow')
+  })
+
+  it('keeps the model-call factory and config aliases behaviorally compatible', () => {
+    const genericConfig: RequestGateConfig = config({ maxConcurrency: 1 })
+    const modelConfig: ModelCallGateConfig = genericConfig
+    const generic = createRequestGate(genericConfig)
+    const model = createModelCallGate(modelConfig)
+
+    expect(generic.acquire('client-a').ok).toBe(true)
+    expect(model.acquire('client-a').ok).toBe(true)
+    expect(generic.acquire('client-b')).toEqual({
+      ok: false,
+      retryAfterMs: 1_000,
+    })
+    expect(model.acquire('client-b')).toEqual({
+      ok: false,
+      retryAfterMs: 1_000,
+    })
+  })
+
+  it('keeps counters and permits separate across gate instances', () => {
+    const first = createRequestGate(config({ maxConcurrency: 1 }))
+    const second = createRequestGate(config({ maxConcurrency: 1 }))
+
+    expect(first.acquire('client-a').ok).toBe(true)
+    expect(first.acquire('client-b').ok).toBe(false)
+    expect(second.acquire('client-b').ok).toBe(true)
   })
 })
 
 function config(
-  overrides: Partial<ModelCallGateConfig> = {},
-): ModelCallGateConfig {
+  overrides: Partial<RequestGateConfig> = {},
+): RequestGateConfig {
   return {
     maxConcurrency: 10,
     globalCallsPerWindow: 10,

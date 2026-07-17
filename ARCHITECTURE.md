@@ -63,8 +63,8 @@ src/
                     digits and number words; failure uses a deterministic fallback.
     server/         Framework-neutral Web API infrastructure. Owns bounded request-body
                     reads, route-local transport contracts, trusted client identity,
-                    environment decoding, per-process model-call admission, and the
-                    injected shared paid-request limiter. May depend on schema/engine
+                    environment decoding, separate per-process model/search admission,
+                    and the injected shared paid-request limiter. May depend on schema/engine
                     contracts and @vercel/firewall, never app or LLM implementations.
   app/              Next.js layer. Thin orchestration only. POST /api/parse runs
                     steps 1–3 plus gaps; GET /api/search streams raw source batches;
@@ -105,6 +105,24 @@ and `/api/explain`; `/api/search` does not consume the paid allowance. Shared
 rejections return 429 without an invented reset duration, while missing or unusable
 hosted configuration fails closed with `service_unavailable` 503 before model work.
 The per-process gate remains a separate defense-in-depth control.
+
+`GET /api/search` applies the same-origin browser boundary after request arrival, then
+validates the complete intent before acquiring its own per-process search permit. The
+search gate is a separate instance with separate counters from both the model gate and
+the paid Visitor allowance: 8 concurrent streams, 600 starts globally per 10-minute
+fixed window, 60 starts per client per 10-minute window, and 1,000 retained client
+keys. The controls are configured by `ROTA_SEARCH_MAX_CONCURRENCY`,
+`ROTA_SEARCH_GLOBAL_REQUESTS_PER_10_MINUTES`,
+`ROTA_SEARCH_CLIENT_REQUESTS_PER_10_MINUTES`, and
+`ROTA_SEARCH_MAX_CLIENT_KEYS`. Search and model gates share only the verified
+`ROTA_TRUST_FORWARDED_ADDRESS` identity decision; neither is a distributed quota.
+
+Each admitted search composes request cancellation with a route-owned provider signal.
+Response-body cancellation aborts that provider signal before iterator shutdown, so
+the current provider timer is cleared promptly and the stream permit releases exactly
+once on completion, cancellation, abort, setup failure, or provider failure. Active
+streams still emit the same raw `batch` and terminal `done` SSE frames and retain the
+300–600 ms first-source and under-2.8-second simulation profile.
 
 Production selection is deliberately fail closed. Only `VERCEL=1` together with the
 exact non-secret `ROTA_PAID_RATE_LIMIT_CONFIGURED=true` attestation selects the Vercel
