@@ -306,6 +306,11 @@ function DateChip({
     <>
       <CalendarDays aria-hidden="true" className="size-3 text-neutral-500" />
       <ChipBody chip={chip} />
+      {current !== null && (
+        <span className="shrink-0 rounded-sm border border-white/[0.12] bg-white/[0.03] px-1 py-0.5 text-[10px] leading-none font-normal tracking-[0.12em] text-neutral-400 uppercase">
+          {current.flexibility === 'exact' ? 'Exact' : 'Flexible'}
+        </span>
+      )}
       <ChevronDown aria-hidden="true" className="size-3 text-neutral-500" />
     </>
   )

@@ -27,7 +27,7 @@ describe('formatDateWindow', () => {
   it('renders a full flexible month compactly', () => {
     expect(
       formatDateWindow({ earliest: '2027-02-01', latest: '2027-02-28', flexibility: 'flexible' }),
-    ).toBe('Feb 2027 · flexible')
+    ).toBe('Feb 2027')
   })
 
   it('renders an exact day', () => {
@@ -39,10 +39,10 @@ describe('formatDateWindow', () => {
   it('renders a partial-month and a cross-month window', () => {
     expect(
       formatDateWindow({ earliest: '2026-09-10', latest: '2026-09-20', flexibility: 'flexible' }),
-    ).toBe('Sep 10 – 20, 2026 · flexible')
+    ).toBe('Sep 10 – 20, 2026')
     expect(
       formatDateWindow({ earliest: '2026-09-28', latest: '2026-10-04', flexibility: 'flexible' }),
-    ).toBe('Sep 28 – Oct 4, 2026 · flexible')
+    ).toBe('Sep 28 – Oct 4, 2026')
   })
 })
 
@@ -98,7 +98,7 @@ describe('chipsFromIntent', () => {
       ['travelers', '2'],
       ['origin', 'ORD · Chicago'],
       ['destination', 'NRT · Tokyo'],
-      ['dates', 'Feb 2027 · flexible'],
+      ['dates', 'Feb 2027'],
       ['cabin', 'premium economy'],
       ['priority', 'cheapest first'],
       ['constraints.nonstop', 'preferred'],

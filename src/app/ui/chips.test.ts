@@ -141,6 +141,43 @@ describe('ChipsRow', () => {
     expect(onEdit).toHaveBeenLastCalledWith({ field: 'cabin', value: 'business' })
   })
 
+  it('shows exact and flexible date modes in the closed chip across breakpoints', () => {
+    const cases = [
+      {
+        label: 'Exact',
+        dates: {
+          earliest: '2027-02-03',
+          latest: '2027-02-03',
+          flexibility: 'exact' as const,
+        },
+      },
+      {
+        label: 'Flexible',
+        dates: {
+          earliest: '2027-02-03',
+          latest: '2027-02-14',
+          flexibility: 'flexible' as const,
+        },
+      },
+    ]
+
+    for (const width of [1024, 375]) {
+      Object.defineProperty(window, 'innerWidth', {
+        value: width,
+        configurable: true,
+      })
+
+      for (const { label, dates } of cases) {
+        setup({ ...intent, dates })
+        const chip = screen.getByRole('button', {
+          name: new RegExp(`dates.*${label}`, 'i'),
+        })
+        expect(within(chip).getByText(label)).toBeTruthy()
+        cleanup()
+      }
+    }
+  })
+
   it('applies exact and ordered flexible date edits', async () => {
     const { onEdit } = setup()
     const user = userEvent.setup()

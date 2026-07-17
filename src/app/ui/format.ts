@@ -73,17 +73,16 @@ export function formatDateWindow(window: DateWindow): string {
   const [ly, lm, ld] = isoParts(window.latest)
   if (window.flexibility === 'exact') return `${MONTHS[em - 1]} ${ed}, ${ey}`
 
-  const suffix = ' · flexible'
   if (ey === ly && em === lm) {
     if (ed === 1 && ld === lastDayOfMonth(ly, lm)) {
-      return `${MONTHS[em - 1]} ${ey}${suffix}`
+      return `${MONTHS[em - 1]} ${ey}`
     }
-    return `${MONTHS[em - 1]} ${ed} – ${ld}, ${ey}${suffix}`
+    return `${MONTHS[em - 1]} ${ed} – ${ld}, ${ey}`
   }
   if (ey === ly) {
-    return `${MONTHS[em - 1]} ${ed} – ${MONTHS[lm - 1]} ${ld}, ${ey}${suffix}`
+    return `${MONTHS[em - 1]} ${ed} – ${MONTHS[lm - 1]} ${ld}, ${ey}`
   }
-  return `${MONTHS[em - 1]} ${ed}, ${ey} – ${MONTHS[lm - 1]} ${ld}, ${ly}${suffix}`
+  return `${MONTHS[em - 1]} ${ed}, ${ey} – ${MONTHS[lm - 1]} ${ld}, ${ly}`
 }
 
 export function formatDuration(minutes: number): string {

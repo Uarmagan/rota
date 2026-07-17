@@ -239,6 +239,8 @@ The deterministic core over flight data. Pure TS, no mocks.
 - [x] Restore the committed TripIntent after a same-tab refresh, including partial
       chip state and a free search re-run without parser or why-line model calls
       (issue #10, 2026-07-16)
+- [x] Make exact versus flexible date state legible from the closed Dates chip on
+      desktop and mobile (issue #11, 2026-07-17)
 - [ ] Walk the demo path against the success criteria: first result <3s, three-utterance
       refinement journey, zero LLM numbers (guard verified in an e2e pass)
 - [ ] Graceful degradation pass on hostile fixtures through the real UI
