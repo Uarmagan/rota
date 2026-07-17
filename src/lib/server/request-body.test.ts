@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_JSON_BODY_BYTES, readLimitedJson } from './request-body'
+import {
+  MAX_JSON_BODY_BYTES,
+  paidRequestLimitError,
+  rateLimited,
+  readLimitedJson,
+} from './request-body'
 
 describe('readLimitedJson', () => {
   it('accepts a valid JSON body at the byte limit', async () => {
@@ -57,6 +62,35 @@ describe('readLimitedJson', () => {
 
     expect(request.headers.has('content-length')).toBe(false)
     expect(result).toEqual({ ok: true, value: { value: 'chunked' } })
+  })
+})
+
+describe('rateLimited', () => {
+  it('keeps Retry-After for a known local cooldown', async () => {
+    const response = rateLimited(1_500)
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('2')
+    await expect(response.json()).resolves.toEqual({ error: 'rate_limited' })
+  })
+
+  it('omits Retry-After when the shared reset is unknown', async () => {
+    const response = rateLimited()
+
+    expect(response.status).toBe(429)
+    expect(response.headers.has('Retry-After')).toBe(false)
+    await expect(response.json()).resolves.toEqual({ error: 'rate_limited' })
+  })
+})
+
+describe('paidRequestLimitError', () => {
+  it('maps shared unavailability to the stable detail-free response', async () => {
+    const response = paidRequestLimitError({ status: 'unavailable' })
+
+    expect(response?.status).toBe(503)
+    await expect(response?.json()).resolves.toEqual({
+      error: 'service_unavailable',
+    })
   })
 })
 
