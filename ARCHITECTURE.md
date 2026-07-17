@@ -63,8 +63,9 @@ src/
                     digits and number words; failure uses a deterministic fallback.
     server/         Framework-neutral Web API infrastructure. Owns bounded request-body
                     reads, route-local transport contracts, trusted client identity,
-                    environment decoding, and per-process model-call admission. May
-                    depend on schema/engine contracts, never app or LLM implementations.
+                    environment decoding, per-process model-call admission, and the
+                    injected shared paid-request limiter. May depend on schema/engine
+                    contracts and @vercel/firewall, never app or LLM implementations.
   app/              Next.js layer. Thin orchestration only. POST /api/parse runs
                     steps 1–3 plus gaps; GET /api/search streams raw source batches;
                     POST /api/explain turns client-computed facts into guarded copy.
@@ -96,8 +97,21 @@ Paid browser requests to `/api/parse` and `/api/explain` require an
 `application/json` media type and same-origin browser-provenance metadata. Non-browser
 JSON callers without browser-provenance headers remain allowed. This boundary rejects
 drive-by browser abuse before body reads and model-call admission, but it is neither
-identity nor bot protection. The per-process model-call gate remains defense in depth;
-Plan 008 owns the authoritative shared allowance for multi-instance deployments.
+identity nor bot protection. Valid paid requests then pass bounded body reading,
+transport-schema validation, and the per-process model-call gate before both routes
+call one injected `PaidRequestLimiter` inside the local permit's `try/finally`. The
+limiter uses the `rota-paid-api-visitor` Vercel Firewall instrument for `/api/parse`
+and `/api/explain`; `/api/search` does not consume the paid allowance. Shared
+rejections return 429 without an invented reset duration, while missing or unusable
+hosted configuration fails closed with `service_unavailable` 503 before model work.
+The per-process gate remains a separate defense-in-depth control.
+
+Production selection is deliberately fail closed. Only `VERCEL=1` together with the
+exact non-secret `ROTA_PAID_RATE_LIMIT_CONFIGURED=true` attestation selects the Vercel
+adapter. Explicit local development and test environments use allow-all; every other
+state is unavailable. The attestation sequences deployment but cannot prove the live
+rule still exists, so the [public demo security runbook](docs/operations/public-demo-security.md)
+owns live inventory and monitoring.
 
 Airport aliases are parser vocabulary owned beside the versioned place registry.
 Availability continues to own display names, coordinates, offsets, and hub metadata.

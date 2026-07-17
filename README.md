@@ -59,6 +59,9 @@ pnpm build
 The test suite is network-free. Live model evaluation is a separate, optional
 workflow and is not part of CI.
 
+Operators should follow the [public demo security runbook](docs/operations/public-demo-security.md)
+before enabling paid model routes in a hosted environment.
+
 ## Contributing and security
 
 Issues and pull requests are welcome at the maintainer's discretion. This is a
