@@ -1,18 +1,10 @@
 import { AIRPORTS, airportInfo } from './airports'
-
-const EARTH_RADIUS_KM = 6371
+import { haversineDistanceKm } from './geo'
 
 export function distanceKm(from: string, to: string): number {
   const a = airportInfo(from)
   const b = airportInfo(to)
-  const latDelta = radians(b.lat - a.lat)
-  const lonDelta = radians(b.lon - a.lon)
-  const value =
-    Math.sin(latDelta / 2) ** 2 +
-    Math.cos(radians(a.lat)) *
-      Math.cos(radians(b.lat)) *
-      Math.sin(lonDelta / 2) ** 2
-  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value))
+  return haversineDistanceKm(a, b)
 }
 
 export function blockMinutes(from: string, to: string): number {
@@ -41,8 +33,4 @@ export function connectionCandidates(
     )
     .slice(0, 4)
     .map(({ iata }) => iata)
-}
-
-function radians(degrees: number): number {
-  return (degrees * Math.PI) / 180
 }

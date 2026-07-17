@@ -15,6 +15,9 @@ describe('PrivacyPage', () => {
     expect(screen.getByText(/retained for up to 30 days/)).toBeTruthy()
     expect(screen.getByText(/one-month reporting window/)).toBeTruthy()
     expect(
+      screen.getByText(/prefills the origin chip in-request and is not stored/),
+    ).toBeTruthy()
+    expect(
       screen.getByRole('link', { name: 'OpenAI API data controls' }).getAttribute(
         'href',
       ),

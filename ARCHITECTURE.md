@@ -64,8 +64,9 @@ src/
     server/         Framework-neutral Web API infrastructure. Owns bounded request-body
                     reads, route-local transport contracts, trusted client identity,
                     environment decoding, separate per-process model/search admission,
-                    and the injected shared paid-request limiter. May depend on schema/engine
-                    contracts and @vercel/firewall, never app or LLM implementations.
+                    the injected shared paid-request limiter, and origin geolocation.
+                    May depend on schema/engine contracts, @vercel/firewall, and
+                    availability-owned airport geometry, never app or LLM implementations.
   app/              Next.js layer. Thin orchestration only. POST /api/parse runs
                     steps 1–3 plus gaps; GET /api/search streams raw source batches;
                     POST /api/explain turns client-computed facts into guarded copy.
@@ -81,7 +82,7 @@ Dependency direction (anything else is a violation):
 schema  <-  engine  <-  app
 schema  <-  parser  <-  app
 engine  <-  availability, prose  <-  app
-schema, engine  <-  server  <-  app
+schema, engine, availability geometry  <-  server  <-  app
 ```
 
 Enforced as an **allowlist**, not a denylist: a Vitest guard asserts (a) files under
