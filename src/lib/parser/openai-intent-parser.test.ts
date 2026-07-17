@@ -12,6 +12,7 @@ import {
 } from '../schema/trip-intent'
 import { ParserError } from './intent-parser'
 import { OpenAIIntentParser } from './openai-intent-parser'
+import { PARSER_FEEDBACK_FRAGMENT_MAX_UNITS } from './parser-feedback'
 import { buildSystemPrompt } from './prompt'
 import { parserEvaluationCases } from './fixtures'
 
@@ -56,6 +57,33 @@ describe('OpenAIIntentParser', () => {
 
     expect(result).toEqual(validResult)
     expect(model.doGenerateCalls).toHaveLength(1)
+  })
+
+  it('caps every parser generation at 1,024 output tokens', async () => {
+    const model = mockModel([modelResult(validResult)])
+    openaiMock.model = model
+
+    await new OpenAIIntentParser(context).parse(
+      createEmptyTripIntent(),
+      'to tokyo',
+    )
+
+    expect(model.doGenerateCalls[0]?.maxOutputTokens).toBe(1_024)
+  })
+
+  it('shows finite parser string bounds in the generated JSON Schema', async () => {
+    const model = mockModel([modelResult(validResult)])
+    openaiMock.model = model
+
+    await new OpenAIIntentParser(context).parse(
+      createEmptyTripIntent(),
+      'to tokyo',
+    )
+
+    const responseFormat = JSON.stringify(model.doGenerateCalls[0]?.responseFormat)
+    expect(responseFormat).toContain('"city":{"type":"string","minLength":1,"maxLength":200}')
+    expect(responseFormat).toContain('"unhandled"')
+    expect(responseFormat).toContain('"maxLength":1000')
   })
 
   it('grounds airport names in the versioned, context-filtered place vocabulary', () => {
@@ -166,7 +194,87 @@ describe('OpenAIIntentParser', () => {
       parser.parse(createEmptyTripIntent(), 'to tokyo february 30'),
     ).resolves.toEqual(validResult)
     expect(model.doGenerateCalls).toHaveLength(2)
+    expect(model.doGenerateCalls.map((call) => call.maxOutputTokens)).toEqual([
+      1_024,
+      1_024,
+    ])
     expect(parser.lastAttemptCount).toBe(2)
+  })
+
+  it('bounds oversized malformed output before one successful feedback attempt', async () => {
+    const sentinel = 'BEYOND_CAP_SENTINEL'
+    const malformed = `{"intent":${'x'.repeat(5_000)}${sentinel}`
+    const model = mockModel([
+      rawTextResult(malformed),
+      modelResult(validResult),
+    ])
+    openaiMock.model = model
+
+    await expect(
+      new OpenAIIntentParser(context).parse(
+        createEmptyTripIntent(),
+        'to tokyo',
+      ),
+    ).resolves.toEqual(validResult)
+
+    expect(model.doGenerateCalls).toHaveLength(2)
+    const assistantOutput = promptText(model.doGenerateCalls[1], 'assistant')
+    const feedbackPrompt = promptText(model.doGenerateCalls[1], 'user', true)
+    const validationFragment = feedbackPrompt.split('Validation issues:\n')[1]
+    for (const fragment of [assistantOutput, validationFragment]) {
+      expect(fragment.length).toBeLessThanOrEqual(
+        PARSER_FEEDBACK_FRAGMENT_MAX_UNITS,
+      )
+      expect(fragment.endsWith('[truncated]')).toBe(true)
+      expect(fragment).not.toContain(sentinel)
+    }
+  })
+
+  it('ends two oversized failures without leaking beyond-cap text', async () => {
+    const sentinel = 'BEYOND_CAP_SENTINEL'
+    const malformed = `{"intent":${'x'.repeat(5_000)}${sentinel}`
+    const model = mockModel([
+      rawTextResult(malformed),
+      rawTextResult(malformed),
+    ])
+    openaiMock.model = model
+
+    const parse = new OpenAIIntentParser(context).parse(
+      createEmptyTripIntent(),
+      'to tokyo',
+    )
+
+    await expect(parse).rejects.toMatchObject({
+      name: 'ParserError',
+      reason: 'invalid_output',
+    })
+    await expect(parse).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof Error &&
+        error.message.length <= PARSER_FEEDBACK_FRAGMENT_MAX_UNITS &&
+        !error.message.includes(sentinel),
+    )
+    expect(model.doGenerateCalls).toHaveLength(2)
+  })
+
+  it('ends conservatively when truncation hides a fenced JSON candidate', async () => {
+    const model = mockModel([
+      rawTextResult(
+        `\`\`\`${'x'.repeat(PARSER_FEEDBACK_FRAGMENT_MAX_UNITS)}{`,
+      ),
+    ])
+    openaiMock.model = model
+
+    await expect(
+      new OpenAIIntentParser(context).parse(
+        createEmptyTripIntent(),
+        'to tokyo',
+      ),
+    ).rejects.toMatchObject({
+      name: 'ParserError',
+      reason: 'invalid_output',
+    })
+    expect(model.doGenerateCalls).toHaveLength(1)
   })
 
   it('retries once when a place is outside the supported registry', async () => {
@@ -186,6 +294,45 @@ describe('OpenAIIntentParser', () => {
     ).resolves.toEqual(validResult)
     expect(model.doGenerateCalls).toHaveLength(2)
     expect(parser.lastAttemptCount).toBe(2)
+  })
+
+  it('bounds oversized registry-membership feedback', async () => {
+    const unknownPlace = {
+      ...validResult,
+      intent: {
+        ...validResult.intent,
+        destination: { iata: 'XXX', city: 'Unknown', assumed: false },
+      },
+    }
+    const oversizedContext = {
+      ...context,
+      supportedPlaces: [
+        { iata: 'NRT', city: 'Tokyo' },
+        ...Array.from({ length: 1_500 }, () => ({
+          iata: 'AAA',
+          city: 'A',
+        })),
+      ],
+    }
+    const model = mockModel([
+      modelResult(unknownPlace),
+      modelResult(validResult),
+    ])
+    openaiMock.model = model
+
+    await expect(
+      new OpenAIIntentParser(oversizedContext).parse(
+        createEmptyTripIntent(),
+        'to tokyo',
+      ),
+    ).resolves.toEqual(validResult)
+
+    const feedbackPrompt = promptText(model.doGenerateCalls[1], 'user', true)
+    const validationFragment = feedbackPrompt.split('Validation issues:\n')[1]
+    expect(validationFragment.length).toBeLessThanOrEqual(
+      PARSER_FEEDBACK_FRAGMENT_MAX_UNITS,
+    )
+    expect(validationFragment.endsWith('[truncated]')).toBe(true)
   })
 
   it('retries once when a country is outside the closed registry', async () => {
@@ -360,4 +507,21 @@ function rawTextResult(
     },
     warnings: [],
   }
+}
+
+function promptText(
+  call: MockLanguageModelV3['doGenerateCalls'][number],
+  role: 'assistant' | 'user',
+  last = false,
+): string {
+  const messages = call.prompt.filter((message) => message.role === role)
+  const message = last ? messages.at(-1) : messages[0]
+  if (!message || typeof message.content === 'string') {
+    throw new Error(`missing ${role} prompt message`)
+  }
+  const text = message.content.find((part) => part.type === 'text')
+  if (!text || text.type !== 'text') {
+    throw new Error(`missing ${role} prompt text`)
+  }
+  return text.text
 }

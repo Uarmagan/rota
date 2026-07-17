@@ -126,6 +126,38 @@ export const tripIntentSchema = z.object({
 })
 export type TripIntent = z.infer<typeof tripIntentSchema>
 
+const parserCitySchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine((city) => [...city].length <= 100, 'at most 100 Unicode code points')
+
+const parserOriginSchema = originSchema.extend({
+  city: parserCitySchema,
+})
+
+const parserResolvedDestinationSchema = resolvedDestinationSchema.extend({
+  city: parserCitySchema,
+})
+
+const parserDestinationSchema = z.union([
+  parserResolvedDestinationSchema,
+  countryDestinationSchema,
+])
+
+const parserTripIntentSchema = tripIntentSchema.extend({
+  origin: parserOriginSchema.nullable(),
+  destination: parserDestinationSchema.nullable(),
+})
+
+const parserUnhandledSchema = z
+  .string()
+  .max(1_000)
+  .refine(
+    (unhandled) => [...unhandled].length <= 500,
+    'at most 500 Unicode code points',
+  )
+
 // The parser's output contract. `unhandled` lives BESIDE the intent, never on it: it is
 // transient (fresh per utterance, never persisted), not a chip, and never diffed — the
 // opposite persistence semantics from every TripIntent field. It holds echo-only display
@@ -135,8 +167,8 @@ export type TripIntent = z.infer<typeof tripIntentSchema>
 // model emits this single object via Output.object; the engine splits it. See
 // docs/adr/0002.
 export const parseResultSchema = z.object({
-  intent: tripIntentSchema,
-  unhandled: z.string().nullable(),
+  intent: parserTripIntentSchema,
+  unhandled: parserUnhandledSchema.nullable(),
 })
 export type ParseResult = z.infer<typeof parseResultSchema>
 

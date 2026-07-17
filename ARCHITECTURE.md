@@ -190,6 +190,14 @@ failures, not malformed JSON to retry blindly. The parser duplicates the version
 registry membership lookup rather than importing engine normalization; ADR 0006 records
 why.
 
+Parser generations have a 1,024-output-token ceiling. The generation-visible JSON
+Schema caps parser-emitted city strings at `maxLength: 200` and `unhandled` at
+`maxLength: 1,000`; the post-parse gate enforces the exact product limits of 100 and 500
+Unicode code points respectively. Failed output, validation feedback, provider error
+fragments, and final parser diagnostics are each bounded to 4,096 UTF-16 code units
+including a stable truncation marker before retry or classification. These are resource
+controls only: they do not enforce ADR 0002 echo provenance and do not unblock Plan 002.
+
 The OpenAI `ResultExplainer` receives only pre-rendered numeric strings derived from
 `ExplanationFacts`; the model quotes those values rather than formatting or converting
 them. It has no feedback retry: empty, oversized, rejected, or failed prose falls back

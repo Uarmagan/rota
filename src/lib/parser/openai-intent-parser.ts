@@ -15,10 +15,17 @@ import {
 } from '../schema/trip-intent'
 import { buildSystemPrompt, buildUserMessage } from './prompt'
 import { ParserError, type IntentParser, type ParserContext } from './intent-parser'
+import {
+  boundParserFeedbackFragment,
+  serializeParserFeedbackValue,
+} from './parser-feedback'
 
 interface ParserOptions {
   model?: string
 }
+
+// Caps the complete structured response, independently of its field-level bounds.
+export const PARSER_MAX_OUTPUT_TOKENS = 1_024
 
 interface GateFailure {
   failedOutput: string
@@ -66,6 +73,7 @@ export class OpenAIIntentParser implements IntentParser {
               ]
             : [{ role: 'user', content: initialUserMessage }],
           output: Output.object({ schema: parseResultSchema }),
+          maxOutputTokens: PARSER_MAX_OUTPUT_TOKENS,
           maxRetries: 1,
           providerOptions: {
             openai: {
@@ -79,7 +87,7 @@ export class OpenAIIntentParser implements IntentParser {
         if (!gate.success) {
           lastFailureMessage = formatZodIssues(gate.error.issues)
           feedback = {
-            failedOutput: JSON.stringify(generated.output),
+            failedOutput: serializeParserFeedbackValue(generated.output).text,
             issues: lastFailureMessage,
             terminal: false,
           }
@@ -96,7 +104,7 @@ export class OpenAIIntentParser implements IntentParser {
           }
           lastFailureMessage = membershipIssue
           feedback = {
-            failedOutput: JSON.stringify(generated.output),
+            failedOutput: serializeParserFeedbackValue(generated.output).text,
             issues: membershipIssue,
             terminal: false,
           }
@@ -108,22 +116,26 @@ export class OpenAIIntentParser implements IntentParser {
             'The model provider quota is exhausted',
           )
         } else if (NoObjectGeneratedError.isInstance(error)) {
-          lastFailureMessage =
-            error.cause instanceof Error ? error.cause.message : error.message
+          lastFailureMessage = boundedErrorMessage(
+            error.cause instanceof Error ? error.cause : error,
+          )
+          const failedOutput = boundParserFeedbackFragment(
+            error.text ?? '(no output)',
+          ).text
           feedback = {
-            failedOutput: error.text ?? '(no output)',
+            failedOutput,
             issues: lastFailureMessage,
-            terminal: isTerminalParseFailure(error.finishReason, error.text),
+            terminal: isTerminalParseFailure(error.finishReason, failedOutput),
           }
         } else if (NoOutputGeneratedError.isInstance(error)) {
           throw new ParserError(
             'invalid_output',
-            `Parser produced no output: ${error.message}`,
+            boundedText(`Parser produced no output: ${boundedErrorMessage(error)}`),
           )
         } else {
           throw new ParserError(
             'transport',
-            `Parser request failed: ${errorMessage(error)}`,
+            boundedText(`Parser request failed: ${boundedErrorMessage(error)}`),
           )
         }
       }
@@ -133,7 +145,7 @@ export class OpenAIIntentParser implements IntentParser {
 
     throw new ParserError(
       'invalid_output',
-      `Parser output failed validation: ${lastFailureMessage}`,
+      boundedText(`Parser output failed validation: ${lastFailureMessage}`),
     )
   }
 }
@@ -161,8 +173,10 @@ function findMembershipIssue(
   for (const place of [result.intent.origin, destination]) {
     if (place && !supportedIataCodes.includes(place.iata)) {
       return (
-        `IATA code ${place.iata} is not in the supported list: ` +
-        supportedIataCodes.join(', ')
+        boundedText(
+          `IATA code ${place.iata} is not in the supported list: ` +
+            supportedIataCodes.join(', '),
+        )
       )
     }
   }
@@ -170,13 +184,23 @@ function findMembershipIssue(
 }
 
 function formatZodIssues(issues: readonly { path: PropertyKey[]; message: string }[]): string {
-  return issues
-    .map((issue) => `${issue.path.map(String).join('.') || 'output'}: ${issue.message}`)
-    .join('\n')
+  const formatted = issues.map((issue) => {
+    const path = boundedText(issue.path.map(String).join('.') || 'output')
+    return `${path}: ${boundedText(issue.message)}`
+  })
+  return boundedText(formatted.join('\n'))
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+function boundedErrorMessage(error: unknown): string {
+  try {
+    return boundedText(error instanceof Error ? error.message : String(error))
+  } catch {
+    return '(unavailable error message)'
+  }
+}
+
+function boundedText(fragment: string): string {
+  return boundParserFeedbackFragment(fragment).text
 }
 
 const BUDGET_ERROR_PATTERN =
@@ -193,10 +217,6 @@ function isBudgetExhausted(error: unknown): boolean {
 }
 
 function serialized(value: unknown): string {
-  if (typeof value === 'string') return value
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return ''
-  }
+  if (typeof value === 'string') return boundedText(value)
+  return serializeParserFeedbackValue(value).text
 }
