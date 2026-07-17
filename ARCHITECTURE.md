@@ -92,6 +92,13 @@ Because the engine is pure TS with no framework dependency, it runs identically 
 server and in the client bundle — the client re-ranks streamed results locally with the
 same code the tests exercise.
 
+Paid browser requests to `/api/parse` and `/api/explain` require an
+`application/json` media type and same-origin browser-provenance metadata. Non-browser
+JSON callers without browser-provenance headers remain allowed. This boundary rejects
+drive-by browser abuse before body reads and model-call admission, but it is neither
+identity nor bot protection. The per-process model-call gate remains defense in depth;
+Plan 008 owns the authoritative shared allowance for multi-instance deployments.
+
 Airport aliases are parser vocabulary owned beside the versioned place registry.
 Availability continues to own display names, coordinates, offsets, and hub metadata.
 Aliases do not enter `Place`, `TripIntent`, `ParseResult`, or any API wire shape; those

@@ -7,6 +7,7 @@ import {
 import { ParserError, type IntentParser } from '../../../lib/parser/intent-parser'
 import { DEMO_API_ERROR_CODES } from '../../../lib/server/demo-api-errors'
 import { parseIntentRequest } from '../../../lib/server/llm-route-contracts'
+import { checkPaidRequestBoundary } from '../../../lib/server/paid-request-boundary'
 import { clientKeyForRequest } from '../../../lib/server/request-client'
 import type { ModelCallGate } from '../../../lib/server/request-gate'
 import {
@@ -27,6 +28,9 @@ export async function handleParse(
   gate: ModelCallGate,
   trustForwardedAddress = false,
 ): Promise<Response> {
+  const boundary = checkPaidRequestBoundary(request)
+  if (!boundary.ok) return boundary.response
+
   const body = await readJsonRequest(request)
   if (!body.ok) return body.response
 
