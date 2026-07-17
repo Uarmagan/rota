@@ -10,5 +10,8 @@ export type ExplanationOutcome =
   | { source: 'budget_exhausted' }
 
 export interface ResultExplainer {
-  explain(facts: ExplanationFacts): Promise<ExplanationOutcome>
+  explain(
+    facts: ExplanationFacts,
+    signal?: AbortSignal,
+  ): Promise<ExplanationOutcome>
 }

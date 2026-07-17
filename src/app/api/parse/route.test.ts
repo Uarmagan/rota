@@ -38,6 +38,25 @@ describe('handleParse', () => {
     })
   })
 
+  it('passes the exact request signal and releases the permit on success', async () => {
+    const parse = vi.fn(async () => ({ intent: parsedIntent, unhandled: null }))
+    const release = vi.fn()
+    const gate: ModelCallGate = {
+      acquire: () => ({ ok: true, permit: { release } }),
+    }
+    const request = validRequest()
+
+    const response = await handleParse(request, { parse }, gate)
+
+    expect(response.status).toBe(200)
+    expect(parse).toHaveBeenCalledWith(
+      createEmptyTripIntent(),
+      'to tokyo',
+      request.signal,
+    )
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   it('resolves a country destination as an immediately searchable assumption', async () => {
     const response = await handleParse(
       validRequest(),
@@ -158,6 +177,37 @@ describe('handleParse', () => {
     expect(release).toHaveBeenCalledOnce()
   })
 
+  it('releases the model-call permit once when the request aborts', async () => {
+    const controller = new AbortController()
+    const request = parseRequest(
+      {
+        currentIntent: createEmptyTripIntent(),
+        utterance: 'to tokyo',
+      },
+      controller.signal,
+    )
+    const release = vi.fn()
+    const gate: ModelCallGate = {
+      acquire: () => ({ ok: true, permit: { release } }),
+    }
+    const parse = vi.fn<IntentParser['parse']>(async (_intent, _utterance, signal) => {
+      await rejectWhenAborted(signal)
+      throw new Error('request aborted')
+    })
+
+    const response = handleParse(request, { parse }, gate)
+    await vi.waitFor(() => expect(parse).toHaveBeenCalledOnce())
+    controller.abort()
+
+    await expect(response).rejects.toThrow('request aborted')
+    expect(parse).toHaveBeenCalledWith(
+      createEmptyTripIntent(),
+      'to tokyo',
+      request.signal,
+    )
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   it('rejects malformed JSON', async () => {
     const response = await handleParse(
       new Request('http://localhost/api/parse', {
@@ -238,7 +288,11 @@ describe('handleParse', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(parse).toHaveBeenCalledWith(createEmptyTripIntent(), utterance)
+    expect(parse).toHaveBeenCalledWith(
+      createEmptyTripIntent(),
+      utterance,
+      expect.any(AbortSignal),
+    )
   })
 
   it('accepts a current-intent city of exactly 100 Unicode code points', async () => {
@@ -291,11 +345,24 @@ function validRequest(): Request {
   })
 }
 
-function parseRequest(body: unknown): Request {
+function parseRequest(body: unknown, signal?: AbortSignal): Request {
   return new Request('http://localhost/api/parse', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
+  })
+}
+
+function rejectWhenAborted(signal: AbortSignal | undefined): Promise<never> {
+  if (!signal) throw new Error('missing request signal')
+  if (signal.aborted) return Promise.reject(new Error('request aborted'))
+  return new Promise((_, reject) => {
+    signal.addEventListener(
+      'abort',
+      () => reject(new Error('request aborted')),
+      { once: true },
+    )
   })
 }
 

@@ -30,7 +30,7 @@ export async function handleExplain(
   if (!decision.ok) return rateLimited(decision.retryAfterMs)
 
   try {
-    const result = await explainer.explain(parsedBody.data.facts)
+    const result = await explainer.explain(parsedBody.data.facts, request.signal)
     if (result.source === 'budget_exhausted') {
       return Response.json(
         { error: DEMO_API_ERROR_CODES.budgetExhausted },

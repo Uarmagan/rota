@@ -249,7 +249,9 @@ export function SearchApp() {
       // The settle beat (verdict bloom) waits for the last wave to finish.
       if (!(await waveSettled())) return
       setStreaming(false)
-      if (!options?.skipWhy) void fetchWhy(searchIntent, collected, run)
+      if (!options?.skipWhy) {
+        void fetchWhy(searchIntent, collected, run, controller.signal)
+      }
     } catch {
       if (controller.signal.aborted || searchRun.current !== run) return
       setStreaming(false)
@@ -264,6 +266,7 @@ export function SearchApp() {
     searchIntent: TripIntent,
     collected: readonly SourceBatch[],
     run: number,
+    signal: AbortSignal,
   ) => {
     try {
       const filtered = filterOptions(
@@ -277,22 +280,24 @@ export function SearchApp() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ facts }),
+        signal,
       })
-      if (searchRun.current !== run) return
+      if (signal.aborted || searchRun.current !== run) return
       if (response.status === 429) {
         setError(DEMO_LIMIT_ERROR)
         return
       }
-      if (
-        response.status === 503 &&
-        (await responseErrorCode(response)) ===
-          DEMO_API_ERROR_CODES.budgetExhausted
-      ) {
-        setError(BUDGET_EXHAUSTED_ERROR)
-        return
+      if (response.status === 503) {
+        const errorCode = await responseErrorCode(response)
+        if (signal.aborted || searchRun.current !== run) return
+        if (errorCode === DEMO_API_ERROR_CODES.budgetExhausted) {
+          setError(BUDGET_EXHAUSTED_ERROR)
+          return
+        }
       }
       if (!response.ok) return
       const explanation = (await response.json()) as { text: string }
+      if (signal.aborted || searchRun.current !== run) return
       setWhy({ optionId: best.id, text: explanation.text })
     } catch {
       // The why-line is a flourish; a failed fetch just leaves it off.

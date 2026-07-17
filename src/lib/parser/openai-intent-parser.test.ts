@@ -11,7 +11,10 @@ import {
   type ParseResult,
 } from '../schema/trip-intent'
 import { ParserError } from './intent-parser'
-import { OpenAIIntentParser } from './openai-intent-parser'
+import {
+  classifyParserFailure,
+  OpenAIIntentParser,
+} from './openai-intent-parser'
 import { PARSER_FEEDBACK_FRAGMENT_MAX_UNITS } from './parser-feedback'
 import { buildSystemPrompt } from './prompt'
 import { parserEvaluationCases } from './fixtures'
@@ -58,6 +61,102 @@ describe('OpenAIIntentParser', () => {
     expect(result).toEqual(validResult)
     expect(model.doGenerateCalls).toHaveLength(1)
   })
+
+  it('rejects a pre-aborted caller before calling the provider', async () => {
+    const model = mockModel([modelResult(validResult)])
+    openaiMock.model = model
+    const caller = new AbortController()
+    const timeout = new AbortController()
+    const timeoutSignal = vi.fn(() => timeout.signal)
+    caller.abort('private caller reason')
+
+    const parse = new OpenAIIntentParser(context, { timeoutSignal }).parse(
+      createEmptyTripIntent(),
+      'to tokyo',
+      caller.signal,
+    )
+
+    await expect(parse).rejects.toMatchObject({
+      name: 'ParserError',
+      reason: 'transport',
+      message: 'Parser request was cancelled or timed out',
+    })
+    expect(timeoutSignal).toHaveBeenCalledWith(15_000)
+    expect(model.doGenerateCalls).toHaveLength(0)
+  })
+
+  it('carries an active caller abort to the provider without feedback retry', async () => {
+    let providerSignal: AbortSignal | undefined
+    const model = new MockLanguageModelV3({
+      doGenerate: async ({ abortSignal }) => {
+        providerSignal = abortSignal
+        await waitForAbort(abortSignal)
+        throw new Error('provider aborted')
+      },
+    })
+    openaiMock.model = model
+    const caller = new AbortController()
+
+    const parse = new OpenAIIntentParser(context).parse(
+      createEmptyTripIntent(),
+      'to tokyo',
+      caller.signal,
+    )
+    await vi.waitFor(() => expect(providerSignal).toBeDefined())
+    caller.abort()
+
+    await expect(parse).rejects.toMatchObject({
+      name: 'ParserError',
+      reason: 'transport',
+      message: 'Parser request was cancelled or timed out',
+    })
+    expect(providerSignal).not.toBe(caller.signal)
+    expect(providerSignal?.aborted).toBe(true)
+    expect(model.doGenerateCalls).toHaveLength(1)
+  })
+
+  it('uses one injected total deadline across parser attempts', async () => {
+    const providerSignals: Array<AbortSignal | undefined> = []
+    const timeout = new AbortController()
+    const timeoutSignal = vi.fn(() => timeout.signal)
+    let attempt = 0
+    const model = new MockLanguageModelV3({
+      doGenerate: async ({ abortSignal }) => {
+        providerSignals.push(abortSignal)
+        attempt += 1
+        if (attempt === 1) return rawTextResult('{"intent":')
+        await waitForAbort(abortSignal)
+        throw new Error('provider timed out')
+      },
+    })
+    openaiMock.model = model
+
+    const parse = new OpenAIIntentParser(context, {
+      timeoutMs: 321,
+      timeoutSignal,
+    }).parse(createEmptyTripIntent(), 'to tokyo')
+    await vi.waitFor(() => expect(providerSignals).toHaveLength(2))
+    timeout.abort()
+
+    await expect(parse).rejects.toMatchObject({
+      name: 'ParserError',
+      reason: 'transport',
+      message: 'Parser request was cancelled or timed out',
+    })
+    expect(timeoutSignal).toHaveBeenCalledOnce()
+    expect(timeoutSignal).toHaveBeenCalledWith(321)
+    expect(providerSignals).toEqual([timeout.signal, timeout.signal])
+    expect(model.doGenerateCalls).toHaveLength(2)
+  })
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2_147_483_648])(
+    'rejects invalid timeout %s at construction',
+    (timeoutMs) => {
+      expect(
+        () => new OpenAIIntentParser(context, { timeoutMs }),
+      ).toThrow(RangeError)
+    },
+  )
 
   it('caps every parser generation at 1,024 output tokens', async () => {
     const model = mockModel([modelResult(validResult)])
@@ -444,6 +543,24 @@ describe('OpenAIIntentParser', () => {
     })
   })
 
+  it('classifies recognized quota before an already-aborted model signal', () => {
+    const signal = AbortSignal.abort()
+    const error = new APICallError({
+      message: 'You exceeded your current quota',
+      url: 'https://api.openai.com/v1/responses',
+      requestBodyValues: {},
+      statusCode: 429,
+      data: {
+        error: {
+          code: 'insufficient_quota',
+          type: 'insufficient_quota',
+        },
+      },
+    })
+
+    expect(classifyParserFailure(error, signal)).toBe('budget_exhausted')
+  })
+
   it.each([
     ['a refusal', rawTextResult("I'm sorry, but I can't help with that")],
     [
@@ -478,6 +595,14 @@ function mockModel(results: MockGenerateResult[]): MockLanguageModelV3 {
       if (!result) throw new Error('unexpected model call')
       return result
     },
+  })
+}
+
+function waitForAbort(signal: AbortSignal | undefined): Promise<void> {
+  if (!signal) throw new Error('missing provider abort signal')
+  if (signal.aborted) return Promise.resolve()
+  return new Promise((resolve) => {
+    signal.addEventListener('abort', () => resolve(), { once: true })
   })
 }
 

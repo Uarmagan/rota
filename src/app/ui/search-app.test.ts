@@ -539,12 +539,127 @@ describe('SearchApp', () => {
     expect(JSON.parse(String(explainRequest.init?.body))).toMatchObject({
       facts: { optionId: BETTER_OPTION.id, isBestMatch: true },
     })
+    expect(explainRequest.init?.signal).toBeInstanceOf(AbortSignal)
 
     explanation.resolve(Response.json({ text: 'Fastest option for this search.' }))
 
     await user.click(screen.getByRole('button', { name: /09:00.*10:00/i }))
     await screen.findByText('Fastest option for this search.')
     expect(screen.getAllByText('Fastest option for this search.')).toHaveLength(1)
+  })
+
+  it('aborts a stale why request when a direct edit starts a newer search', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    const staleExplanation = deferred<Response>()
+    const businessOption = { ...BETTER_OPTION, cabin: 'business' as const }
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(
+      sseResponse([batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]),
+      sseResponse([batchFrame(batch('aurora', businessOption)), doneFrame()]),
+    )
+    router.explain.push(
+      staleExplanation.promise,
+      Response.json({ text: 'New search why line.' }),
+    )
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+    await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(1))
+    const staleRequest = router.requestsFor('/api/explain')[0]
+
+    await user.click(screen.getByRole('button', { name: /cabin.*economy/i }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'business' }))
+
+    await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(2))
+    expect(staleRequest.init?.signal?.aborted).toBe(true)
+    staleExplanation.resolve(Response.json({ text: 'Stale why line.' }))
+
+    await user.click(screen.getByRole('button', { name: /09:00.*10:00/i }))
+    expect(await screen.findByText('New search why line.')).toBeTruthy()
+    expect(screen.queryByText('Stale why line.')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('ignores a stale why error after a newer search starts', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    const staleExplanation = deferred<Response>()
+    const businessOption = { ...BETTER_OPTION, cabin: 'business' as const }
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(
+      sseResponse([batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]),
+      sseResponse([batchFrame(batch('aurora', businessOption)), doneFrame()]),
+    )
+    router.explain.push(
+      staleExplanation.promise,
+      Response.json({ text: 'Current why line.' }),
+    )
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+    await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(1))
+    await user.click(screen.getByRole('button', { name: /cabin.*economy/i }))
+    await user.click(await screen.findByRole('menuitemradio', { name: 'business' }))
+    await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(2))
+
+    staleExplanation.resolve(
+      Response.json({ error: 'rate_limited' }, { status: 429 }),
+    )
+    await act(async () => Promise.resolve())
+
+    expect(
+      screen.queryByText('Demo limit reached. Try again in a few minutes.'),
+    ).toBeNull()
+  })
+
+  it('aborts a pending why request on unmount', async () => {
+    const router = new FetchRouter()
+    const pendingExplanation = deferred<Response>()
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(
+      sseResponse([batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]),
+    )
+    router.explain.push(pendingExplanation.promise)
+    router.install()
+
+    const { unmount } = render(createElement(SearchApp))
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    await userEvent.setup().type(input, 'tokyo in feb for 2{Enter}')
+    await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(1))
+    const request = router.requestsFor('/api/explain')[0]
+
+    unmount()
+
+    expect(request.init?.signal?.aborted).toBe(true)
+    pendingExplanation.resolve(Response.json({ text: 'Stale why line.' }))
+    await act(async () => Promise.resolve())
+  })
+
+  it('aborts a pending why request when intent becomes unsearchable', async () => {
+    const user = userEvent.setup()
+    const router = new FetchRouter()
+    const pendingExplanation = deferred<Response>()
+    router.parse.push(parseResponse(SEARCH_INTENT))
+    router.search.push(
+      sseResponse([batchFrame(batch('aurora', BETTER_OPTION)), doneFrame()]),
+    )
+    router.explain.push(pendingExplanation.promise)
+    router.install()
+
+    await submitUtterance('tokyo in feb for 2')
+    await waitFor(() => expect(router.requestsFor('/api/explain')).toHaveLength(1))
+    const request = router.requestsFor('/api/explain')[0]
+
+    await user.click(screen.getByRole('button', { name: /dates.*Feb 3/i }))
+    const dates = await screen.findByRole('dialog', { name: 'Edit Dates' })
+    await user.click(within(dates).getByRole('button', { name: 'Clear' }))
+
+    expect(await screen.findByText('When?')).toBeTruthy()
+    expect(request.init?.signal?.aborted).toBe(true)
+    pendingExplanation.resolve(Response.json({ text: 'Stale why line.' }))
+    await act(async () => Promise.resolve())
+    expect(screen.queryByText('Stale why line.')).toBeNull()
   })
 
   it('completes the lazy-query, direct-edit, re-search, and result-details journey', async () => {

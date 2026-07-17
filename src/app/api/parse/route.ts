@@ -40,6 +40,7 @@ export async function handleParse(
     const result = await parser.parse(
       parsedBody.data.currentIntent,
       parsedBody.data.utterance,
+      request.signal,
     )
     const intent = fillDefaults(
       fillAssumptions(canonicalizePlaces(result.intent), NORMALIZE_CONFIG),

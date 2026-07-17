@@ -22,10 +22,15 @@ import {
 
 interface ParserOptions {
   model?: string
+  timeoutMs?: number
+  timeoutSignal?: (ms: number) => AbortSignal
 }
 
 // Caps the complete structured response, independently of its field-level bounds.
 export const PARSER_MAX_OUTPUT_TOKENS = 1_024
+const DEFAULT_PARSER_TIMEOUT_MS = 15_000
+const MAX_TIMEOUT_MS = 2_147_483_647
+const CANCELLED_MESSAGE = 'Parser request was cancelled or timed out'
 
 interface GateFailure {
   failedOutput: string
@@ -35,6 +40,8 @@ interface GateFailure {
 
 export class OpenAIIntentParser implements IntentParser {
   readonly modelId: string
+  private readonly timeoutMs: number
+  private readonly timeoutSignal: (ms: number) => AbortSignal
   lastAttemptCount = 0
 
   constructor(
@@ -42,9 +49,23 @@ export class OpenAIIntentParser implements IntentParser {
     options: ParserOptions = {},
   ) {
     this.modelId = options.model ?? process.env.ROTA_MODEL ?? 'gpt-5.6-luna'
+    this.timeoutMs = validateTimeout(
+      options.timeoutMs ?? DEFAULT_PARSER_TIMEOUT_MS,
+    )
+    this.timeoutSignal = options.timeoutSignal ?? AbortSignal.timeout
   }
 
-  async parse(currentIntent: TripIntent, utterance: string): Promise<ParseResult> {
+  async parse(
+    currentIntent: TripIntent,
+    utterance: string,
+    signal?: AbortSignal,
+  ): Promise<ParseResult> {
+    const deadlineSignal = this.timeoutSignal(this.timeoutMs)
+    const modelSignal = signal === undefined
+      ? deadlineSignal
+      : AbortSignal.any([signal, deadlineSignal])
+    if (modelSignal.aborted) throw cancelledParserError()
+
     const system = buildSystemPrompt(this.context)
     const initialUserMessage = buildUserMessage(
       currentIntent,
@@ -57,6 +78,7 @@ export class OpenAIIntentParser implements IntentParser {
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       this.lastAttemptCount = attempt
       try {
+        if (modelSignal.aborted) throw cancelledParserError()
         const generated: { readonly output: unknown } = await generateText({
           model: openai(this.modelId),
           system,
@@ -75,6 +97,7 @@ export class OpenAIIntentParser implements IntentParser {
           output: Output.object({ schema: parseResultSchema }),
           maxOutputTokens: PARSER_MAX_OUTPUT_TOKENS,
           maxRetries: 1,
+          abortSignal: modelSignal,
           providerOptions: {
             openai: {
               reasoningEffort: 'none',
@@ -110,11 +133,14 @@ export class OpenAIIntentParser implements IntentParser {
           }
         }
       } catch (error) {
-        if (isBudgetExhausted(error)) {
+        const classification = classifyParserFailure(error, modelSignal)
+        if (classification === 'budget_exhausted') {
           throw new ParserError(
             'budget_exhausted',
             'The model provider quota is exhausted',
           )
+        } else if (classification === 'cancelled') {
+          throw cancelledParserError()
         } else if (NoObjectGeneratedError.isInstance(error)) {
           lastFailureMessage = boundedErrorMessage(
             error.cause instanceof Error ? error.cause : error,
@@ -148,6 +174,23 @@ export class OpenAIIntentParser implements IntentParser {
       boundedText(`Parser output failed validation: ${lastFailureMessage}`),
     )
   }
+}
+
+function validateTimeout(timeoutMs: number): number {
+  if (
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs <= 0 ||
+    timeoutMs > MAX_TIMEOUT_MS
+  ) {
+    throw new RangeError(
+      `timeoutMs must be a positive safe integer no greater than ${MAX_TIMEOUT_MS}`,
+    )
+  }
+  return timeoutMs
+}
+
+function cancelledParserError(): ParserError {
+  return new ParserError('transport', CANCELLED_MESSAGE)
 }
 
 function isTerminalParseFailure(
@@ -214,6 +257,15 @@ function isBudgetExhausted(error: unknown): boolean {
       (value) => BUDGET_ERROR_PATTERN.test(serialized(value)),
     )
   })
+}
+
+export function classifyParserFailure(
+  error: unknown,
+  modelSignal: AbortSignal,
+): 'budget_exhausted' | 'cancelled' | 'other' {
+  if (isBudgetExhausted(error)) return 'budget_exhausted'
+  if (modelSignal.aborted) return 'cancelled'
+  return 'other'
 }
 
 function serialized(value: unknown): string {
