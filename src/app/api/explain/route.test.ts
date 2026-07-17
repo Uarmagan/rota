@@ -268,12 +268,31 @@ describe('handleExplain', () => {
       locallyRejected: false,
     },
     {
+      name: 'cross-site boundary rejection',
+      request: () =>
+        explainRequest(
+          { facts },
+          { origin: 'https://attacker.example' },
+        ),
+      locallyRejected: false,
+    },
+    {
       name: 'malformed body rejection',
       request: () =>
         new Request('http://localhost/api/explain', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: '{',
+        }),
+      locallyRejected: false,
+    },
+    {
+      name: 'oversized body rejection',
+      request: () =>
+        new Request('http://localhost/api/explain', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ value: 'x'.repeat(32 * 1024) }),
         }),
       locallyRejected: false,
     },
