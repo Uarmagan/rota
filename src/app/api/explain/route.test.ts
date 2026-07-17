@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ExplanationFacts } from '../../../lib/engine/types'
 import type { ResultExplainer } from '../../../lib/prose/result-explainer'
+import type { PaidRequestLimiter } from '../../../lib/server/paid-request-limiter'
 import type { ModelCallGate } from '../../../lib/server/request-gate'
-import { handleExplain } from './route'
+import { handleExplain as handleExplainRoute } from './route'
 
 const facts: ExplanationFacts = {
   optionId: 'option-1',
@@ -18,7 +19,98 @@ const facts: ExplanationFacts = {
   vsFastest: null,
 }
 
+function handleExplain(
+  request: Request,
+  explainer: ResultExplainer,
+  gate: ModelCallGate,
+  limiter: PaidRequestLimiter = allowingPaidRequestLimiter,
+  trustForwardedAddress = false,
+): Promise<Response> {
+  return handleExplainRoute(
+    request,
+    explainer,
+    gate,
+    limiter,
+    trustForwardedAddress,
+  )
+}
+
 describe('handleExplain', () => {
+  it('rejects non-JSON media before acquiring a permit or explaining', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleExplain(
+      new Request('http://localhost/api/explain', {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain' },
+        body: '{}',
+      }),
+      { explain },
+      { acquire },
+    )
+
+    expect(response.status).toBe(415)
+    expect(await response.json()).toEqual({
+      error: 'unsupported_media_type',
+    })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('rejects cross-site JSON before acquiring a permit or explaining', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleExplain(
+      explainRequest(
+        { facts },
+        { origin: 'https://attacker.example' },
+      ),
+      { explain },
+      { acquire },
+    )
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'cross_site_request' })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('rejects without reading a throwing request stream', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleExplain(
+      throwingStreamRequest('http://localhost/api/explain'),
+      { explain },
+      { acquire },
+    )
+
+    expect(response.status).toBe(415)
+    expect(await response.json()).toEqual({
+      error: 'unsupported_media_type',
+    })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('accepts same-origin JSON browser requests', async () => {
+    const explainer: ResultExplainer = {
+      explain: async () => ({ text: 'Best match.', source: 'model' }),
+    }
+    const response = await handleExplain(
+      explainRequest(
+        { facts },
+        {
+          origin: 'http://localhost',
+          'sec-fetch-site': 'same-origin',
+        },
+      ),
+      explainer,
+      allowingGate,
+    )
+
+    expect(response.status).toBe(200)
+  })
+
   it('returns guarded explainer copy', async () => {
     const explainer: ResultExplainer = {
       explain: async () => ({ text: 'Best match.', source: 'model' }),
@@ -107,6 +199,7 @@ describe('handleExplain', () => {
     const response = await handleExplain(
       new Request('http://localhost/api/explain', {
         method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ value: 'x'.repeat(32 * 1024) }),
       }),
       { explain },
@@ -132,6 +225,138 @@ describe('handleExplain', () => {
     expect(explain).not.toHaveBeenCalled()
   })
 
+  it('returns a shared 429 and releases the local permit before explaining', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const release = vi.fn()
+    const gate: ModelCallGate = {
+      acquire: () => ({ ok: true, permit: { release } }),
+    }
+    const check = vi.fn<PaidRequestLimiter['check']>().mockResolvedValue({
+      status: 'rate_limited',
+    })
+
+    const response = await handleExplain(
+      explainRequest({ facts }),
+      { explain },
+      gate,
+      { check },
+    )
+
+    expect(response.status).toBe(429)
+    expect(response.headers.has('retry-after')).toBe(false)
+    expect(await response.json()).toEqual({ error: 'rate_limited' })
+    expect(check).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledOnce()
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it('returns a detail-free 503 and releases the permit when the shared limiter is unavailable', async () => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const release = vi.fn()
+    const check = vi.fn<PaidRequestLimiter['check']>().mockResolvedValue({
+      status: 'unavailable',
+    })
+
+    const response = await handleExplain(
+      explainRequest({ facts }),
+      { explain },
+      { acquire: () => ({ ok: true, permit: { release } }) },
+      { check },
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'service_unavailable' })
+    expect(check).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledOnce()
+    expect(explain).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'browser boundary rejection',
+      request: () =>
+        new Request('http://localhost/api/explain', {
+          method: 'POST',
+          headers: { 'content-type': 'text/plain' },
+          body: '{}',
+        }),
+      locallyRejected: false,
+    },
+    {
+      name: 'cross-site boundary rejection',
+      request: () =>
+        explainRequest(
+          { facts },
+          { origin: 'https://attacker.example' },
+        ),
+      locallyRejected: false,
+    },
+    {
+      name: 'malformed body rejection',
+      request: () =>
+        new Request('http://localhost/api/explain', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{',
+        }),
+      locallyRejected: false,
+    },
+    {
+      name: 'oversized body rejection',
+      request: () =>
+        new Request('http://localhost/api/explain', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ value: 'x'.repeat(32 * 1024) }),
+        }),
+      locallyRejected: false,
+    },
+    {
+      name: 'schema rejection',
+      request: () => explainRequest({ facts: {} }),
+      locallyRejected: false,
+    },
+    {
+      name: 'local gate rejection',
+      request: () => explainRequest({ facts }),
+      locallyRejected: true,
+    },
+  ])('skips the shared allowance on $name', async ({ request, locallyRejected }) => {
+    const explain = vi.fn<ResultExplainer['explain']>()
+    const check = vi.fn<PaidRequestLimiter['check']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>(() =>
+      locallyRejected
+        ? { ok: false, retryAfterMs: 1_000 }
+        : { ok: true, permit: { release() {} } },
+    )
+
+    await handleExplain(request(), { explain }, { acquire }, { check })
+
+    expect(check).not.toHaveBeenCalled()
+    expect(explain).not.toHaveBeenCalled()
+    expect(acquire).toHaveBeenCalledTimes(locallyRejected ? 1 : 0)
+  })
+
+  it('checks the shared allowance once and releases once on success', async () => {
+    const explain = vi.fn(async () => ({ text: 'Best match.', source: 'model' as const }))
+    const check = vi.fn<PaidRequestLimiter['check']>().mockResolvedValue({
+      status: 'allowed',
+    })
+    const release = vi.fn()
+
+    const response = await handleExplain(
+      explainRequest({ facts }),
+      { explain },
+      { acquire: () => ({ ok: true, permit: { release } }) },
+      { check },
+    )
+
+    expect(response.status).toBe(200)
+    expect(check).toHaveBeenCalledOnce()
+    expect(explain).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   it('releases the model-call permit when the explainer throws', async () => {
     const release = vi.fn()
     const gate: ModelCallGate = {
@@ -151,7 +376,7 @@ describe('handleExplain', () => {
 
   it('releases the model-call permit once when the request aborts', async () => {
     const controller = new AbortController()
-    const request = explainRequest({ facts }, controller.signal)
+    const request = explainRequest({ facts }, {}, controller.signal)
     const release = vi.fn()
     const gate: ModelCallGate = {
       acquire: () => ({ ok: true, permit: { release } }),
@@ -229,10 +454,14 @@ describe('handleExplain', () => {
   })
 })
 
-function explainRequest(body: unknown, signal?: AbortSignal): Request {
+function explainRequest(
+  body: unknown,
+  headers: Record<string, string> = {},
+  signal?: AbortSignal,
+): Request {
   return new Request('http://localhost/api/explain', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
     signal,
   })
@@ -250,10 +479,28 @@ function rejectWhenAborted(signal: AbortSignal | undefined): Promise<never> {
   })
 }
 
+function throwingStreamRequest(url: string): Request {
+  const body = new ReadableStream<Uint8Array>({
+    pull() {
+      throw new Error('request body must not be read')
+    },
+  })
+  return new Request(url, {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain' },
+    body,
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' })
+}
+
 const rejectingGate: ModelCallGate = {
   acquire: () => ({ ok: false, retryAfterMs: 2_001 }),
 }
 
 const allowingGate: ModelCallGate = {
   acquire: () => ({ ok: true, permit: { release() {} } }),
+}
+
+const allowingPaidRequestLimiter: PaidRequestLimiter = {
+  check: async () => ({ status: 'allowed' }),
 }

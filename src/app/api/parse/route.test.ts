@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ParserError, type IntentParser } from '../../../lib/parser/intent-parser'
 import { createEmptyTripIntent, type ParseResult } from '../../../lib/schema/trip-intent'
+import type { PaidRequestLimiter } from '../../../lib/server/paid-request-limiter'
 import type { ModelCallGate } from '../../../lib/server/request-gate'
-import { handleParse } from './route'
+import { handleParse as handleParseRoute } from './route'
 
 const parsedIntent: ParseResult['intent'] = {
   ...createEmptyTripIntent(),
@@ -15,7 +16,101 @@ const parsedIntent: ParseResult['intent'] = {
   },
 }
 
+function handleParse(
+  request: Request,
+  parser: IntentParser,
+  gate: ModelCallGate,
+  limiter: PaidRequestLimiter = allowingPaidRequestLimiter,
+  trustForwardedAddress = false,
+): Promise<Response> {
+  return handleParseRoute(
+    request,
+    parser,
+    gate,
+    limiter,
+    trustForwardedAddress,
+  )
+}
+
 describe('handleParse', () => {
+  it('rejects non-JSON media before acquiring a permit or parsing', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleParse(
+      new Request('http://localhost/api/parse', {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain' },
+        body: '{}',
+      }),
+      { parse },
+      { acquire },
+    )
+
+    expect(response.status).toBe(415)
+    expect(await response.json()).toEqual({
+      error: 'unsupported_media_type',
+    })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(parse).not.toHaveBeenCalled()
+  })
+
+  it('rejects cross-site JSON before acquiring a permit or parsing', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleParse(
+      parseRequest(
+        {
+          currentIntent: createEmptyTripIntent(),
+          utterance: 'to tokyo',
+        },
+        { origin: 'https://attacker.example' },
+      ),
+      { parse },
+      { acquire },
+    )
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'cross_site_request' })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(parse).not.toHaveBeenCalled()
+  })
+
+  it('rejects without reading a throwing request stream', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>()
+    const response = await handleParse(
+      throwingStreamRequest('http://localhost/api/parse'),
+      { parse },
+      { acquire },
+    )
+
+    expect(response.status).toBe(415)
+    expect(await response.json()).toEqual({
+      error: 'unsupported_media_type',
+    })
+    expect(acquire).not.toHaveBeenCalled()
+    expect(parse).not.toHaveBeenCalled()
+  })
+
+  it('accepts same-origin JSON browser requests', async () => {
+    const response = await handleParse(
+      parseRequest(
+        {
+          currentIntent: createEmptyTripIntent(),
+          utterance: 'to tokyo',
+        },
+        {
+          origin: 'http://localhost',
+          'sec-fetch-site': 'same-origin',
+        },
+      ),
+      stubParser({ intent: parsedIntent, unhandled: null }),
+      allowingGate,
+    )
+
+    expect(response.status).toBe(200)
+  })
+
   it('normalizes a successful lazy utterance', async () => {
     const response = await handleParse(
       parseRequest({
@@ -184,6 +279,7 @@ describe('handleParse', () => {
         currentIntent: createEmptyTripIntent(),
         utterance: 'to tokyo',
       },
+      {},
       controller.signal,
     )
     const release = vi.fn()
@@ -212,6 +308,7 @@ describe('handleParse', () => {
     const response = await handleParse(
       new Request('http://localhost/api/parse', {
         method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: '{',
       }),
       stubParser({ intent: parsedIntent, unhandled: null }),
@@ -227,6 +324,7 @@ describe('handleParse', () => {
     const response = await handleParse(
       new Request('http://localhost/api/parse', {
         method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ value: 'x'.repeat(32 * 1024) }),
       }),
       { parse },
@@ -246,6 +344,141 @@ describe('handleParse', () => {
     expect(response.headers.get('retry-after')).toBe('3')
     expect(await response.json()).toEqual({ error: 'rate_limited' })
     expect(parse).not.toHaveBeenCalled()
+  })
+
+  it('returns a shared 429 and releases the local permit before parsing', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const release = vi.fn()
+    const gate: ModelCallGate = {
+      acquire: () => ({ ok: true, permit: { release } }),
+    }
+    const check = vi.fn<PaidRequestLimiter['check']>().mockResolvedValue({
+      status: 'rate_limited',
+    })
+
+    const response = await handleParse(
+      validRequest(),
+      { parse },
+      gate,
+      { check },
+    )
+
+    expect(response.status).toBe(429)
+    expect(response.headers.has('retry-after')).toBe(false)
+    expect(await response.json()).toEqual({ error: 'rate_limited' })
+    expect(check).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledOnce()
+    expect(parse).not.toHaveBeenCalled()
+  })
+
+  it('returns a detail-free 503 and releases the permit when the shared limiter is unavailable', async () => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const release = vi.fn()
+    const check = vi.fn<PaidRequestLimiter['check']>().mockResolvedValue({
+      status: 'unavailable',
+    })
+
+    const response = await handleParse(
+      validRequest(),
+      { parse },
+      { acquire: () => ({ ok: true, permit: { release } }) },
+      { check },
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'service_unavailable' })
+    expect(check).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledOnce()
+    expect(parse).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'browser boundary rejection',
+      request: () =>
+        new Request('http://localhost/api/parse', {
+          method: 'POST',
+          headers: { 'content-type': 'text/plain' },
+          body: '{}',
+        }),
+      locallyRejected: false,
+    },
+    {
+      name: 'cross-site boundary rejection',
+      request: () =>
+        parseRequest(
+          {
+            currentIntent: createEmptyTripIntent(),
+            utterance: 'to tokyo',
+          },
+          { origin: 'https://attacker.example' },
+        ),
+      locallyRejected: false,
+    },
+    {
+      name: 'malformed body rejection',
+      request: () =>
+        new Request('http://localhost/api/parse', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{',
+        }),
+      locallyRejected: false,
+    },
+    {
+      name: 'oversized body rejection',
+      request: () =>
+        new Request('http://localhost/api/parse', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ value: 'x'.repeat(32 * 1024) }),
+        }),
+      locallyRejected: false,
+    },
+    {
+      name: 'schema rejection',
+      request: () => parseRequest({ currentIntent: {}, utterance: '' }),
+      locallyRejected: false,
+    },
+    {
+      name: 'local gate rejection',
+      request: validRequest,
+      locallyRejected: true,
+    },
+  ])('skips the shared allowance on $name', async ({ request, locallyRejected }) => {
+    const parse = vi.fn<IntentParser['parse']>()
+    const check = vi.fn<PaidRequestLimiter['check']>()
+    const acquire = vi.fn<ModelCallGate['acquire']>(() =>
+      locallyRejected
+        ? { ok: false, retryAfterMs: 1_000 }
+        : { ok: true, permit: { release() {} } },
+    )
+
+    await handleParse(request(), { parse }, { acquire }, { check })
+
+    expect(check).not.toHaveBeenCalled()
+    expect(parse).not.toHaveBeenCalled()
+    expect(acquire).toHaveBeenCalledTimes(locallyRejected ? 1 : 0)
+  })
+
+  it('checks the shared allowance once and releases once on success', async () => {
+    const parse = vi.fn(async () => ({ intent: parsedIntent, unhandled: null }))
+    const check = vi.fn<PaidRequestLimiter['check']>().mockResolvedValue({
+      status: 'allowed',
+    })
+    const release = vi.fn()
+
+    const response = await handleParse(
+      validRequest(),
+      { parse },
+      { acquire: () => ({ ok: true, permit: { release } }) },
+      { check },
+    )
+
+    expect(response.status).toBe(200)
+    expect(check).toHaveBeenCalledOnce()
+    expect(parse).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledOnce()
   })
 
   it('rejects an empty utterance', async () => {
@@ -345,10 +578,14 @@ function validRequest(): Request {
   })
 }
 
-function parseRequest(body: unknown, signal?: AbortSignal): Request {
+function parseRequest(
+  body: unknown,
+  headers: Record<string, string> = {},
+  signal?: AbortSignal,
+): Request {
   return new Request('http://localhost/api/parse', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
     signal,
   })
@@ -366,6 +603,20 @@ function rejectWhenAborted(signal: AbortSignal | undefined): Promise<never> {
   })
 }
 
+function throwingStreamRequest(url: string): Request {
+  const body = new ReadableStream<Uint8Array>({
+    pull() {
+      throw new Error('request body must not be read')
+    },
+  })
+  return new Request(url, {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain' },
+    body,
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' })
+}
+
 function stubParser(result: ParseResult): IntentParser {
   return { parse: async () => result }
 }
@@ -376,4 +627,8 @@ const rejectingGate: ModelCallGate = {
 
 const allowingGate: ModelCallGate = {
   acquire: () => ({ ok: true, permit: { release() {} } }),
+}
+
+const allowingPaidRequestLimiter: PaidRequestLimiter = {
+  check: async () => ({ status: 'allowed' }),
 }
