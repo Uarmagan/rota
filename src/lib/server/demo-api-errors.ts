@@ -1,6 +1,7 @@
 export const DEMO_API_ERROR_CODES = {
   rateLimited: 'rate_limited',
   budgetExhausted: 'demo_budget_exhausted',
+  serviceUnavailable: 'service_unavailable',
 } as const
 
 export type DemoApiErrorCode =

@@ -30,7 +30,8 @@ pnpm dev
 
 Set `OPENAI_API_KEY` in `.env.local`. `ROTA_MODEL` optionally selects the
 OpenAI model used by both model boundaries. The remaining variables in
-[`.env.example`](.env.example) configure the in-process defense-in-depth gate.
+[`.env.example`](.env.example) configure either the in-process defense-in-depth
+gate or the fail-closed hosted paid-request boundary.
 
 Open [http://localhost:3000](http://localhost:3000) after the development
 server starts.
@@ -58,6 +59,9 @@ pnpm build
 
 The test suite is network-free. Live model evaluation is a separate, optional
 workflow and is not part of CI.
+
+Operators should follow the [public demo security runbook](docs/operations/public-demo-security.md)
+before enabling paid model routes in a hosted environment.
 
 ## Contributing and security
 

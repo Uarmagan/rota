@@ -1,4 +1,5 @@
 import { DEMO_API_ERROR_CODES } from './demo-api-errors'
+import type { PaidRequestLimitDecision } from './paid-request-limiter'
 
 export const MAX_JSON_BODY_BYTES = 32 * 1024
 
@@ -83,14 +84,30 @@ export function limitedJsonErrorResponse(
   )
 }
 
-export function rateLimited(retryAfterMs: number): Response {
-  const retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1_000))
+export function rateLimited(retryAfterMs?: number): Response {
+  const headers =
+    retryAfterMs === undefined
+      ? undefined
+      : {
+          'Retry-After': String(Math.max(1, Math.ceil(retryAfterMs / 1_000))),
+        }
   return Response.json(
     { error: DEMO_API_ERROR_CODES.rateLimited },
     {
       status: 429,
-      headers: { 'Retry-After': String(retryAfterSeconds) },
+      headers,
     },
+  )
+}
+
+export function paidRequestLimitError(
+  decision: PaidRequestLimitDecision,
+): Response | null {
+  if (decision.status === 'allowed') return null
+  if (decision.status === 'rate_limited') return rateLimited()
+  return Response.json(
+    { error: DEMO_API_ERROR_CODES.serviceUnavailable },
+    { status: 503 },
   )
 }
 
