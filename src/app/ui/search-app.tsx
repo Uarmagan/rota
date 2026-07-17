@@ -31,7 +31,7 @@ import { useIsMobile } from '@/app/ui/hooks/use-mobile'
 import { ChipsRow, type ChipAnimation, type ChipAnimationKind } from './chips'
 import { loadIntent, saveIntent } from './intent-storage'
 import { Results } from './results'
-import { searchStream } from './stream'
+import { SearchStreamError, searchStream } from './stream'
 
 type ParseOutcome =
   | { ok: true; intent: TripIntent; gap: GapOutcome }
@@ -252,9 +252,13 @@ export function SearchApp() {
       if (!options?.skipWhy) {
         void fetchWhy(searchIntent, collected, run, controller.signal)
       }
-    } catch {
+    } catch (error) {
       if (controller.signal.aborted || searchRun.current !== run) return
       setStreaming(false)
+      if (error instanceof SearchStreamError && error.status === 429) {
+        setError(DEMO_LIMIT_ERROR)
+        return
+      }
       setError({
         kind: 'message',
         message: 'The search stream dropped. Try again.',

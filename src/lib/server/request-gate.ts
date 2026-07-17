@@ -1,19 +1,19 @@
 // This in-memory gate is per process only. Multi-instance deployments still require
 // an authoritative edge/shared limiter and a provider billing ceiling.
 
-export interface ModelCallPermit {
+export interface RequestPermit {
   release(): void
 }
 
-export type ModelCallGateDecision =
-  | { ok: true; permit: ModelCallPermit }
+export type RequestGateDecision =
+  | { ok: true; permit: RequestPermit }
   | { ok: false; retryAfterMs: number }
 
-export interface ModelCallGate {
-  acquire(clientKey: string): ModelCallGateDecision
+export interface RequestGate {
+  acquire(clientKey: string): RequestGateDecision
 }
 
-export interface ModelCallGateConfig {
+export interface RequestGateConfig {
   maxConcurrency: number
   globalCallsPerWindow: number
   clientCallsPerWindow: number
@@ -30,7 +30,7 @@ interface WindowBucket {
 
 const CONCURRENCY_RETRY_AFTER_MS = 1_000
 
-export function createModelCallGate(config: ModelCallGateConfig): ModelCallGate {
+export function createRequestGate(config: RequestGateConfig): RequestGate {
   validateConfig(config)
 
   const clock = config.clock ?? Date.now
@@ -135,11 +135,20 @@ function evictOldestClientIfFull(
   if (oldestKey !== null) buckets.delete(oldestKey)
 }
 
-function validateConfig(config: ModelCallGateConfig): void {
+function validateConfig(config: RequestGateConfig): void {
   for (const [name, value] of Object.entries(config)) {
     if (name === 'clock') continue
     if (!Number.isSafeInteger(value) || (value as number) <= 0) {
       throw new Error(`Invalid model-call gate configuration: ${name}`)
     }
   }
+}
+
+export type ModelCallPermit = RequestPermit
+export type ModelCallGateDecision = RequestGateDecision
+export type ModelCallGate = RequestGate
+export type ModelCallGateConfig = RequestGateConfig
+
+export function createModelCallGate(config: ModelCallGateConfig): ModelCallGate {
+  return createRequestGate(config)
 }

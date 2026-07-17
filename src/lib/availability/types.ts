@@ -21,10 +21,13 @@ export interface SourceBatch {
 }
 
 export interface AvailabilityProvider {
-  search(query: AvailabilityQuery): AsyncIterable<SourceBatch>
+  search(
+    query: AvailabilityQuery,
+    signal: AbortSignal,
+  ): AsyncIterable<SourceBatch>
 }
 
-export type DelayFn = (ms: number) => Promise<void>
+export type DelayFn = (ms: number, signal: AbortSignal) => Promise<void>
 
 export interface SourcePersonality {
   id: string

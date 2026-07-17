@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SourceBatch } from '@/lib/availability/types'
 import type { TripIntent } from '@/lib/schema/trip-intent'
-import { searchStream } from './stream'
+import { SearchStreamError, searchStream } from './stream'
 
 const intent: TripIntent = {
   travelers: null,
@@ -67,9 +67,23 @@ describe('searchStream', () => {
   it('rejects a non-successful response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 503 })))
 
-    await expect(
-      collect(searchStream(intent, new AbortController().signal)),
-    ).rejects.toThrow('Search failed (503)')
+    const error = await collect(
+      searchStream(intent, new AbortController().signal),
+    ).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(SearchStreamError)
+    expect(error).toMatchObject({ status: 503, message: 'Search failed (503)' })
+  })
+
+  it('carries an empty-body 429 as a typed status-only outcome', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 429 })))
+
+    const error = await collect(
+      searchStream(intent, new AbortController().signal),
+    ).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(SearchStreamError)
+    expect(error).toMatchObject({ status: 429, message: 'Search failed (429)' })
   })
 
   it('rejects a response without a body', async () => {

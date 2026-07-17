@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createSimulatedAvailability,
   DEFAULT_BASE_SEED,
@@ -38,6 +38,10 @@ const QUERIES = [
     travelers: 4,
   },
 ] as const satisfies readonly AvailabilityQuery[]
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('planAvailability', () => {
   it('replays identical plans and changes inventory with route or dates', () => {
@@ -106,10 +110,12 @@ describe('planAvailability', () => {
 describe('createSimulatedAvailability', () => {
   it('streams the plan in order using only successive scheduled delay gaps', async () => {
     const recorded: number[] = []
+    const controller = new AbortController()
     const provider = createSimulatedAvailability({
       baseSeed: DEFAULT_BASE_SEED,
-      delay: (ms) => {
+      delay: (ms, signal) => {
         recorded.push(ms)
+        expect(signal).toBe(controller.signal)
         return Promise.resolve()
       },
     })
@@ -117,7 +123,9 @@ describe('createSimulatedAvailability', () => {
     const plan = planAvailability(query)
     const streamed = []
 
-    for await (const batch of provider.search(query)) streamed.push(batch)
+    for await (const batch of provider.search(query, controller.signal)) {
+      streamed.push(batch)
+    }
 
     expect(streamed).toEqual(
       plan.map(({ atMs: _atMs, ...batch }) => batch),
@@ -125,5 +133,42 @@ describe('createSimulatedAvailability', () => {
     expect(recorded).toEqual(
       plan.map(({ atMs }, index) => atMs - (plan[index - 1]?.atMs ?? 0)),
     )
+  })
+
+  it('returns before scheduling a delay when already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const delay = vi.fn(() => Promise.resolve())
+    const iterator = createSimulatedAvailability({ delay }).search(
+      QUERIES[0],
+      controller.signal,
+    )[Symbol.asyncIterator]()
+
+    expect(await iterator.next()).toEqual({ done: true, value: undefined })
+    expect(delay).not.toHaveBeenCalled()
+  })
+
+  it('cancels an in-flight timer promptly and yields no later batch', async () => {
+    vi.useFakeTimers()
+    const controller = new AbortController()
+    const iterator = createSimulatedAvailability().search(
+      QUERIES[0],
+      controller.signal,
+    )[Symbol.asyncIterator]()
+    let result: IteratorResult<unknown> | undefined
+    const pending = iterator.next().then((next) => {
+      result = next
+    })
+    await Promise.resolve()
+
+    expect(vi.getTimerCount()).toBe(1)
+    controller.abort()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(result).toEqual({ done: true, value: undefined })
+    expect(vi.getTimerCount()).toBe(0)
+    await pending
+    expect(await iterator.next()).toEqual({ done: true, value: undefined })
   })
 })

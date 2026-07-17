@@ -11,13 +11,22 @@ import {
 } from '../../lib/schema/places'
 import type { Place } from '../../lib/schema/trip-intent'
 import { paidRequestLimiterFromEnvironment } from '../../lib/server/paid-request-limiter'
-import { createModelCallGate } from '../../lib/server/request-gate'
-import { modelCallGateSettingsFromEnvironment } from '../../lib/server/request-gate-config'
+import {
+  createModelCallGate,
+  createRequestGate,
+} from '../../lib/server/request-gate'
+import {
+  modelCallGateSettingsFromEnvironment,
+  searchRequestGateConfigFromEnvironment,
+} from '../../lib/server/request-gate-config'
 
 export const DEFAULT_ORIGIN: Place = { iata: 'ORD', city: 'Chicago' }
 export const NORMALIZE_CONFIG: NormalizeConfig = { defaultOrigin: DEFAULT_ORIGIN }
 const modelCallGateSettings = modelCallGateSettingsFromEnvironment(process.env)
 export const MODEL_CALL_GATE = createModelCallGate(modelCallGateSettings.config)
+export const SEARCH_REQUEST_GATE = createRequestGate(
+  searchRequestGateConfigFromEnvironment(process.env),
+)
 export const PAID_REQUEST_LIMITER =
   paidRequestLimiterFromEnvironment(process.env)
 export const TRUST_FORWARDED_ADDRESS =

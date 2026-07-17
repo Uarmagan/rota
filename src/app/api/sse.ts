@@ -9,6 +9,7 @@ export function sseEvent(event: string, data: unknown): string {
 export function sourceBatchStream(
   batches: AsyncIterable<SourceBatch>,
   signal: AbortSignal,
+  cancelUpstream: () => void = () => {},
 ): Response {
   const iterator = batches[Symbol.asyncIterator]()
   let ended = false
@@ -16,6 +17,7 @@ export function sourceBatchStream(
   const stop = async (): Promise<void> => {
     if (ended) return
     ended = true
+    cancelUpstream()
     await iterator.return?.()
   }
   signal.addEventListener('abort', () => void stop(), { once: true })
