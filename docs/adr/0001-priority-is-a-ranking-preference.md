@@ -1,8 +1,8 @@
 # `priority` is a top-level ranking preference, not a filter or a constraint
 
-The PRD accepts utterances like "somewhere warm in march, cheap", but the schema had
+The product accepts utterances like "somewhere warm in march, cheap", but the schema had
 nowhere to hold a price/speed preference. We added a top-level
-`priority: 'cheapest' | 'fastest' | null` (see [D1 in ROADMAP.md](../../ROADMAP.md)).
+`priority: 'cheapest' | 'fastest' | null`.
 
 ## Decision
 
@@ -23,7 +23,7 @@ nowhere to hold a price/speed preference. We added a top-level
 
 ## Considered and rejected
 
-- **`maxPrice` budget filter** — requires a user-stated number no PRD utterance
+- **`maxPrice` budget filter** — requires a user-stated number no product example
   provides, and drags empty-result/follow-up policy into scope. A coherent phase-2
   feature, not this.
 - **`preferCheapest: boolean | null`** — price-only; its `false` state is meaningless,

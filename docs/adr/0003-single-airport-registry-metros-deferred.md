@@ -7,7 +7,7 @@ The place registry had two Tokyo airports (NRT, HND) and a documented "first ent
 rule for bare city names. That rule was only ever enforced by a soft parser-prompt
 instruction — `canonicalizePlaces` validates whatever IATA code the model emits and does
 not re-resolve to the first entry — so which airport "Tokyo" resolved to was effectively
-a language-model choice (see [D3 in ROADMAP.md](../../ROADMAP.md)).
+a language-model choice.
 
 ## Decision
 
@@ -23,7 +23,7 @@ Defer **multi-airport metros** — a metro code like `TYO` that the engine expan
   to member airports at search, narrowing refinements ("actually just Haneda":
   `TYO` → `HND`), and ranking across a mixed-airport result set — to serve a single city
   in a demo is a poor scope trade. Metros are correct for a production engine, which is
-  why the PRD parks them in phase 2.
+  why the product scope parks them in phase 2.
 - **The demo doesn't need it.** No 60-second demo-path utterance depends on multi-airport
   coverage.
 - **Self-enforcing beats soft-enforced.** With no ambiguous city, "first entry wins"

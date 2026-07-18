@@ -3,11 +3,12 @@
 Conversational flight search on simulated availability. Read these before changing
 anything:
 
-- [PRD.md](PRD.md) — product scope and principles (what and why)
+- [PRODUCT.md](PRODUCT.md) — users, positioning, scope, and product principles
+- [CONTEXT.md](CONTEXT.md) — canonical domain language and behavioral rules
 - [ARCHITECTURE.md](ARCHITECTURE.md) — module boundaries and the intent pipeline
-  (where and how)
-- [ROADMAP.md](ROADMAP.md) — milestone order, status, and open decisions (when).
-  Keep it updated as work lands.
+- [DESIGN.md](DESIGN.md) — visual and interaction system for UI work
+
+Future work lives in GitHub Issues, not a repository roadmap.
 
 ## Non-negotiable invariants
 

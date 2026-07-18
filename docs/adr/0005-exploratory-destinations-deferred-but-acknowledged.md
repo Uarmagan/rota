@@ -1,9 +1,9 @@
 # Exploratory destinations: no theme search in MVP, but the theme is acknowledged
 
-The PRD showcases "somewhere warm in march, cheap" as proof the product accepts natural
+The product uses "somewhere warm in march, cheap" as proof it accepts natural
 phrasing. "Somewhere warm" is a deliberately vague destination — an invitation to
-explore — but the pipeline treats a null destination as a *missing* field to correct (see
-[D5 in ROADMAP.md](../../ROADMAP.md)). D1 and D2 already improved this: "in march" → dates,
+explore — but the pipeline treats a null destination as a *missing* field to correct.
+The priority and unhandled-clause decisions already improve this: "in march" → dates,
 "cheap" → `priority`, and "somewhere warm" is captured in `unhandled` rather than dropped.
 
 ## Decision
@@ -34,7 +34,7 @@ explore — but the pipeline treats a null destination as a *missing* field to c
 
 - **Add `destinationTheme` state + engine resolution now.** Rejected: real scope, and the
   registry can't support a convincing "warm" result set. Phase 2.
-- **Ratify but keep the follow-up blunt.** Rejected: leaves the PRD's headline example
+- **Ratify but keep the follow-up blunt.** Rejected: leaves the product's headline example
   demoing as a shrug and hides the captured theme.
 
 ## Known limitation (phase-2 polish)
