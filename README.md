@@ -8,15 +8,16 @@ Rota turns natural-language trip requests into an explicit, editable search
 intent. It searches simulated flight inventory with a deterministic engine and
 shows why the best result matches the request.
 
-## Demo notes
+## About the demo
 
 - Flights and fares are simulated. Rota is a demonstration, not a booking
   service.
-- Natural-language parsing and the result explanation use the OpenAI API.
-- The public demo allows 20 paid API requests per visitor every 10 minutes.
-- Live AI pauses when the owner-funded monthly demo credits are used.
-- Basic page visits are counted with Vercel Web Analytics. Search text is not
-  stored by Rota. See the [privacy page](https://rota.ugur.dev/privacy).
+- Natural-language searches and result explanations are processed with the
+  OpenAI API.
+- Usage limits apply, so AI features may occasionally be unavailable.
+- Rota does not store search text or create visitor profiles. Vercel Web
+  Analytics counts basic page visits. See the
+  [privacy page](https://rota.ugur.dev/privacy) for details.
 
 ## Run locally
 
@@ -29,14 +30,13 @@ pnpm dev
 ```
 
 Set `OPENAI_API_KEY` in `.env.local`. `ROTA_MODEL` optionally selects the
-OpenAI model used by both model boundaries. The remaining variables in
-[`.env.example`](.env.example) configure either the in-process defense-in-depth
-gate or the fail-closed hosted paid-request boundary.
+OpenAI model used for parsing and result explanations. See
+[`.env.example`](.env.example) for the remaining configuration options.
 
 Open [http://localhost:3000](http://localhost:3000) after the development
 server starts.
 
-## Architecture
+## How it works
 
 - `src/app/` contains the Next.js routes and interaction surface.
 - `src/lib/schema/` owns the shared Zod schemas and domain types.
@@ -45,9 +45,9 @@ server starts.
 - `src/lib/parser/` and `src/lib/prose/` are the only OpenAI model boundaries.
 - `src/lib/availability/` generates deterministic simulated inventory.
 
-The search engine runs without network access. The parser and prose boundaries
-are isolated so their outputs can be validated before they enter deterministic
-code. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full boundary rules.
+The deterministic search engine has no network dependency. The parser and prose
+boundaries are isolated so their outputs can be validated before they enter the
+engine. Import-boundary tests keep those responsibilities separate.
 
 ## Verify
 
@@ -60,18 +60,15 @@ pnpm build
 The test suite is network-free. Live model evaluation is a separate, optional
 workflow and is not part of CI.
 
-Operators should follow the [public demo security runbook](docs/operations/public-demo-security.md)
-before enabling paid model routes in a hosted environment.
-
 ## Contributing and security
 
-Issues and pull requests are welcome at the maintainer's discretion. This is a
-portfolio demo, so there is no support or maintenance commitment. Read
-[CONTRIBUTING.md](CONTRIBUTING.md) before proposing a change and report security
-issues through [SECURITY.md](SECURITY.md), not a public issue.
+Issues and focused pull requests are welcome, but support, review, and ongoing
+maintenance are not guaranteed. Read [CONTRIBUTING.md](CONTRIBUTING.md) before
+proposing a change. Report security issues privately through
+[SECURITY.md](SECURITY.md), not in a public issue.
 
 ## License
 
-Rota is available under the [MIT License](LICENSE). Vendored agent-development
-skills retain their upstream licenses; see
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Rota is available under the [MIT License](LICENSE). See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for notices covering vendored
+materials.
