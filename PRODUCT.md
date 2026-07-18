@@ -16,6 +16,10 @@ Anyone who books their own flights and has ever opened four tabs to answer one q
 
 Rota is conversational flight search that shows its work, running on simulated availability (a deliberate, labeled scope decision). Natural language in, visible structure out: the user talks, the search updates, and every interpretation renders as editable chips. Success is a first-time viewer understanding the product within one query, a lazy query streaming its first result in under 3 seconds, and a three-utterance refinement journey where every chip change is visible and every re-rank is legible.
 
+## Product Scope
+
+Rota is a responsive web demo for one-way, cash-priced flight search over labeled simulated inventory. It does not book travel or provide real availability, and it does not include accounts, alerts, hotels, cars, or native clients. The structured trip intent is the product state; conversation is only an input method and is never retained as a transcript.
+
 ## Positioning
 
 Flight search you can talk to that never hides what it understood — the conversation edits the search, the structure earns the trust.

@@ -1,6 +1,6 @@
 import type { TripIntent } from '../schema/trip-intent'
 
-// Pipeline step 5: the PRD's ambiguity policy — at most ONE targeted ask, only
+// Pipeline step 5: the product's ambiguity policy — at most ONE targeted ask, only
 // for high-risk gaps. Runs on normalized intents (origin is already filled), so the
 // only missing-field gap that blocks a search is the destination. The engine reports
 // the gap; the UI embodies the ask as an unfilled prompt chip — no question copy is

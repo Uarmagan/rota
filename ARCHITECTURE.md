@@ -1,8 +1,9 @@
 # Rota — Architecture
 
-Companion to [PRD.md](PRD.md). The PRD says what and why; this says where and how. Every
-structural decision here exists to make a PRD principle enforceable in code rather than
-by convention.
+Companion to [PRODUCT.md](PRODUCT.md) and [CONTEXT.md](CONTEXT.md). They define what the
+product is and how its domain behaves; this document says where and how those rules are
+enforced. Every structural decision here exists to make a product principle enforceable
+in code rather than by convention.
 
 ## Stack (locked)
 
@@ -181,16 +182,16 @@ steps 1–3. Same diff, same re-search.
 ### Latency budget
 
 The pipeline is sequential — search cannot open until parse produces destination and
-dates. The PRD's under-3-seconds criterion is met by budget, not by pretending
+dates. The product's under-3-seconds criterion is met by budget, not by pretending
 otherwise: parse with a small model ~1.5–2s, steps 2–5 sub-millisecond, and the first
 simulated source configured to answer in 300–600ms (availability latency is ours to
 choose — fake data, honest transport, tuned so partial answers land fast). Optional
 upgrade if parse proves slow, not assumed by the design: stream the parser's partial
 object and open the search as soon as destination + dates validate.
 
-## Where each PRD principle is enforced
+## Where each product principle is enforced
 
-| PRD principle | Enforcement point |
+| Product principle | Enforcement point |
 |---|---|
 | 1. The AI never silently decides | Every interpretable field in `schema` is `.nullable()`; resolved origin and destination places carry `assumed: boolean`. The parser emits only a stated country; `engine/normalize.ts` owns country resolution and all assumption-filling, while `engine/gaps.ts` owns follow-up policy. Chips render only from TripIntent, so nothing that was decided can stay invisible. |
 | 2. The AI interprets, the engine computes | LLM calls exist in exactly two modules — `parser` (user words → visible TripIntent values, Zod-gated, then deterministically canonicalized) and `prose` (ExplanationFacts → copy) — enforced by the repo-wide allowlist guard. A parser value such as Travelers: 3 may be a traceable interpretation of three named people; it is not a generated availability fact. Every price, duration, rank, comparison, and other result number is deterministic. `prose` output passes a number-provenance guard: every digit sequence and spelled-out number word in the copy must correspond to a value in the input facts, else the copy is rejected and a deterministic fallback template renders. |
@@ -280,8 +281,8 @@ the feedback-retry path.
 - `engine`: plain Vitest unit tests, no mocks needed — that's the point of the purity
   constraint. Normalize (canonicalization + assumption-fill), diff, gaps, filter, rank,
   pricing, explain-facts all covered directly.
-- `parser`: the committed fixture set (`src/lib/parser/fixtures.ts`) is the product
-  requirement from PRD §6. It currently contains 53 canonical fixtures expanded into
+- `parser`: the committed fixture set (`src/lib/parser/fixtures.ts`) is a product
+  requirement. It currently contains 53 canonical fixtures expanded into
   65 deterministic evaluation cases; 19 canonical challenge fixtures expand to 31
   strict challenge cases. Curated variants inherit the canonical fixture's complete
   expected state, while minimal-pair fixtures carry their own deliberately different

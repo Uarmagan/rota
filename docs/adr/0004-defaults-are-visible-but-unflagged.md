@@ -1,10 +1,8 @@
 # Unstated cabin/travelers are filled as visible chips, but only origin is flagged "assumed"
 
 `origin` carries an `assumed` flag and renders as "From: Chicago (assumed)". Unstated
-`cabin` and `travelers` were slated to default silently at search time (economy, 1) with
-no chip — a direct conflict with product principle #1, "the AI never silently decides"
-(see [D4 in ROADMAP.md](../../ROADMAP.md)). The M2 engine that would apply those defaults
-does not exist yet, so this is settled before it is built.
+`cabin` and `travelers` default to economy and 1 traveler. Applying those values without
+a chip would conflict with product principle #1, "the AI never silently decides."
 
 ## Decision
 

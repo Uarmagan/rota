@@ -11,7 +11,7 @@ import {
   type TripIntent,
 } from '../schema/trip-intent'
 
-// Parser fixture format (PRD §6: the fixture set is a product requirement).
+// Parser fixture format (the fixture set is a product requirement).
 //
 // Each fixture is one (currentIntent, utterance) => expected full TripIntent case,
 // pinned at the PARSER stage of the pipeline. The test runner asserts THREE things:
@@ -449,7 +449,7 @@ export const parserFixtures: readonly ParserFixture[] = [
     name: 'rich-query-origin-left-null',
     kind: 'assumption',
     description:
-      'The PRD demo opener. Everything is explicit except origin, which must ' +
+      'The product demo opener. Everything is explicit except origin, which must ' +
       'remain null: assumption is engine policy, and a parser that invents an ' +
       'origin fails this fixture. (fillAssumptions turns the null into ' +
       '"Chicago (assumed)" — engine-tested, not asserted here.)',
@@ -520,7 +520,7 @@ export const parserFixtures: readonly ParserFixture[] = [
     name: 'exploratory-warm-march-cheap',
     kind: 'initial',
     description:
-      'The PRD marquee exploratory query. Everything resolvable is parsed — "in ' +
+      'The product marquee exploratory query. Everything resolvable is parsed — "in ' +
       'march" -> dates, "cheap" -> priority cheapest — while "somewhere warm" cannot ' +
       'become a registry place and is echoed through unhandled (no theme->destination ' +
       'search in MVP; that is phase 2). Destination stays null, so checkGaps returns a ' +
@@ -611,7 +611,7 @@ export const parserFixtures: readonly ParserFixture[] = [
     name: 'late-arrival-refinement',
     kind: 'refinement',
     description:
-      'The PRD demo step 4. "Lands after midnight" is NOT an arriveBy clock-time ' +
+      'The product demo step 4. "Lands after midnight" is NOT an arriveBy clock-time ' +
       'deadline (00:30 compares as earlier than any evening time) — it must map ' +
       'to the avoidLateArrival flag. Everything else survives verbatim.',
     context: CONTEXT,

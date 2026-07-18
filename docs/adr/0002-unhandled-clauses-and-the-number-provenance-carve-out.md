@@ -4,7 +4,7 @@ The schema expresses a fixed vocabulary; users say things outside it ("exactly o
 connection", "window seat"). Silently dropping those clauses violates product principle
 #1 ("the AI never silently decides"), and a dropped clause leaves no trace for the
 engine to react to. So the parser now emits `unhandled` for recognized-but-unsupported
-clauses (see [D2 in ROADMAP.md](../../ROADMAP.md)).
+clauses.
 
 ## Decision
 
